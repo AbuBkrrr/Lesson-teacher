@@ -1,0 +1,51 @@
+name: Release builds
+
+# Manual: builds the Android app (EAS cloud) and desktop installers.
+# Required repo secrets: EXPO_TOKEN (Android), PROD_API_BASE (https://api.example.com/api).
+on:
+  workflow_dispatch:
+    inputs:
+      android_profile:
+        description: 'EAS profile (preview = installable APK, production = Play Store AAB)'
+        default: preview
+        type: choice
+        options: [preview, production]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with: { eas-version: latest, token: '${{ secrets.EXPO_TOKEN }}' }
+      - run: eas build --platform android --profile ${{ inputs.android_profile }} --non-interactive --no-wait
+
+  desktop:
+    strategy:
+      matrix:
+        include:
+          - { os: windows-latest, script: electron:build:win }
+          - { os: macos-latest, script: electron:build:mac }
+          - { os: ubuntu-latest, script: electron:build:linux }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: portal } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: portal/package-lock.json }
+      - run: npm ci
+      - run: npm run ${{ matrix.script }}
+        env:
+          VITE_API_BASE: ${{ secrets.PROD_API_BASE }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            portal/release/*.exe
+            portal/release/*.dmg
+            portal/release/*.deb

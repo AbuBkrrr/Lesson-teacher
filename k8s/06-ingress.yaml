@@ -1,0 +1,35 @@
+# Assumes the ingress-nginx controller. Adjust the ingressClassName and
+# annotations if you're on a different controller (Traefik, ALB, etc — the
+# long-lived-connection timeouts below are the part most likely to need a
+# translated equivalent).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lesson-teacher
+  namespace: lesson-teacher
+  annotations:
+    # Socket.io connections (chat, and the lesson-room signaling built on
+    # it) are long-lived — the default ~60s proxy timeout would silently
+    # drop idle connections mid-conversation or mid-call.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    # nginx upgrades to WebSocket automatically on the Connection/Upgrade
+    # headers for HTTP/1.1 — no special annotation needed for that part.
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com # replace with your real domain
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: backend, port: { number: 4000 } }
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service: { name: backend, port: { number: 4000 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: portal, port: { number: 80 } }

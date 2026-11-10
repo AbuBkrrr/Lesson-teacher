@@ -1,0 +1,107 @@
+{
+  "name": "lesson-teacher-portal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Lesson Teacher \u2014 parent-tutor marketplace desktop portal",
+  "author": {
+    "name": "Lesson Teacher",
+    "email": "support@lessonteacher.example"
+  },
+  "homepage": "https://lessonteacher.example",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "e2e": "playwright test",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "electron:dev": "electron .",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux",
+    "electron:build:all": "npm run build && electron-builder -mwl"
+  },
+  "dependencies": {
+    "mediasoup-client": "^3.22.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "oxlint": "^1.75.0",
+    "playwright": "^1.62.1",
+    "playwright-core": "^1.62.1",
+    "vite": "^8.2.0",
+    "vite-plugin-pwa": "^2.0.0"
+  },
+  "build": {
+    "appId": "com.lessonteacher.desktop",
+    "productName": "Lesson Teacher",
+    "copyright": "Copyright \u00a9 2026 Lesson Teacher",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.education",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Lesson Teacher needs camera access for live video lessons.",
+        "NSMicrophoneUsageDescription": "Lesson Teacher needs microphone access for live video lessons."
+      },
+      "hardenedRuntime": true
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Education"
+    }
+  }
+}

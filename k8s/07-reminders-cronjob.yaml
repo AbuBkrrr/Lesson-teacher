@@ -1,0 +1,30 @@
+# Sends "lesson starting soon" reminders (see backend/scripts/REMINDERS.md).
+# The script is idempotent (bookings.reminder_sent_at), so overlapping or
+# repeated runs never double-send. Run it more often than the lookahead
+# window's width (default window is 15 min), so every lesson is caught.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lesson-reminders
+  namespace: lesson-teacher
+spec:
+  schedule: '*/10 * * * *'
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reminders
+              image: ghcr.io/OWNER/REPO-backend:latest # same image as 04-backend.yaml
+              command: ['node', 'scripts/sendLessonReminders.js']
+              envFrom:
+                - configMapRef: { name: lesson-teacher-config }
+                - secretRef: { name: lesson-teacher-secrets }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 250m, memory: 256Mi }

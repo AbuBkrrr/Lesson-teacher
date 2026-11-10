@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Lesson Teacher",
+    "slug": "lesson-teacher-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "lessonteacher",
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Lesson Teacher needs access to your photos so you can attach proof of payment for a direct bank transfer."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-foreground.png",
+          "color": "#E6F4FE"
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lessonteacher.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Lesson Teacher needs camera access for live video lessons.",
+        "NSMicrophoneUsageDescription": "Lesson Teacher needs microphone access for live video lessons.",
+        "NSPhotoLibraryUsageDescription": "Lesson Teacher needs photo access so you can attach proof of payment for a direct bank transfer."
+      }
+    },
+    "android": {
+      "package": "com.lessonteacher.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK",
+        "BLUETOOTH",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

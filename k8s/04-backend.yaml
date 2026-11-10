@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Why hostNetwork: true, and what it costs you
+# ---------------------------------------------------------------------------
+# A mediasoup WebRtcTransport is a real ICE/DTLS endpoint that a browser
+# connects to directly on a specific UDP/TCP port. Once that handshake picks
+# a pod, every packet for that call must keep reaching that exact pod — a
+# normal ClusterIP/LoadBalancer Service load-balances per-connection across
+# replicas, which breaks an in-progress call the moment a packet lands on a
+# different pod than the one holding that transport's DTLS/SRTP state.
+#
+# hostNetwork: true sidesteps the Service abstraction for the RTC port range
+# entirely: the pod binds directly to the node's network namespace, so
+# MEDIASOUP_ANNOUNCED_IP (sourced below from the node's own IP via the
+# downward API) is genuinely reachable at that address. The trade-off is
+# real: you get one video-call-capable pod per node (a second replica on the
+# same node would collide on the same host ports), so scaling this service
+# means adding nodes, not just increasing `replicas`.
+#
+# On a cloud provider, status.hostIP is the node's *internal* IP, not a
+# public one — for pods to be reachable from the browsers on the public
+# internet you'll typically need either nodes with a directly-attached
+# public IP (common on bare-metal/VPS setups) or a TURN server (e.g. coturn)
+# in front of mediasoup so browsers connect to the TURN server's stable
+# public address instead of the pod directly. That's the standard next step
+# once you need this to scale past a handful of nodes or work reliably
+# behind strict NATs — it's a deliberate scope cut for this manifest, not an
+# oversight.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: lesson-teacher
+spec:
+  replicas: 2 # one per node, per the hostNetwork constraint above — needs at least 2 schedulable nodes
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels: { app: backend }
+              topologyKey: 'kubernetes.io/hostname' # enforces the "one per node" constraint above; without it two replicas could land on the same node and fail to bind the same host ports
+      containers:
+        - name: backend
+          image: ghcr.io/OWNER/REPO-backend:latest # replace OWNER/REPO, or point at your own registry
+          ports:
+            - containerPort: 4000
+            - containerPort: 40000
+              protocol: UDP
+            - containerPort: 40100
+              protocol: UDP
+          env:
+            - name: MEDIASOUP_ANNOUNCED_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          envFrom:
+            - configMapRef: { name: lesson-teacher-config }
+            - secretRef: { name: lesson-teacher-secrets }
+          livenessProbe:
+            httpGet: { path: /api/health, port: 4000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /api/health, port: 4000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 1, memory: 512Mi }
+---
+# Only fronts the HTTP/WebSocket signaling port (4000) — the RTC media
+# ports are deliberately NOT in this Service; browsers reach those directly
+# on each node's IP via MEDIASOUP_ANNOUNCED_IP, per the note above.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: lesson-teacher
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 4000
+      targetPort: 4000

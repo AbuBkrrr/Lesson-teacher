@@ -1,0 +1,69 @@
+# For dev/staging convenience only. In production, point DATABASE_URL (in
+# the Secret) at a managed Postgres instance (RDS, Cloud SQL, etc.) instead
+# of running the database inside the cluster — you want backups, failover,
+# and point-in-time recovery handled by something built for it, and you
+# don't want your database's availability tied to your app cluster's.
+# Skip applying this file entirely if you're using a managed database.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: lesson-teacher
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: lessonteacher
+            - name: POSTGRES_DB
+              value: lessonteacher
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lesson-teacher-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ['pg_isready', '-U', 'lessonteacher']
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 1, memory: 512Mi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ['ReadWriteOnce']
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: lesson-teacher
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None # headless — StatefulSet pods get stable DNS (postgres-0.postgres.lesson-teacher.svc)

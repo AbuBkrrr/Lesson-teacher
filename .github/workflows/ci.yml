@@ -1,0 +1,293 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # Every other job is gated on this one so a commit that only touches, say,
+  # the mobile app doesn't also spend CI minutes rebuilding the backend's
+  # Postgres-backed test suite and both Docker images — those are genuinely
+  # unrelated to that change, not just "fast enough to not matter".
+  changes:
+    name: Detect changed projects
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      portal: ${{ steps.filter.outputs.portal }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            portal:
+              - 'portal/**'
+            mobile:
+              - 'mobile/**'
+
+  backend-test:
+    name: Backend tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lessonteacher
+          POSTGRES_PASSWORD: lessonteacher_dev_pw
+          POSTGRES_DB: lessonteacher_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # mediasoup either downloads a prebuilt worker binary (fast path) or
+      # falls back to compiling it from source, which needs a C++ toolchain.
+      # ubuntu-latest runners ship build-essential + python3 already, so
+      # nothing extra is needed here — this is just documenting why `npm ci`
+      # alone is sufficient.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          # tests/globalSetup.js applies schema.postgres.sql itself, so no
+          # separate migration step is needed before this.
+          DATABASE_URL: postgres://lessonteacher:lessonteacher_dev_pw@localhost:5432/lessonteacher_test
+
+  portal-build:
+    name: Portal lint + build
+    needs: changes
+    if: needs.changes.outputs.portal == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: portal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: portal/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  mobile-lint:
+    name: Mobile lint + bundle
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint src App.js --max-warnings=0
+
+      # A real Metro/Hermes bundle for both platforms — this is what
+      # actually caught real errors during development (missing imports,
+      # bad JSX) that a lint pass alone wouldn't. GitHub's runners have
+      # normal internet access, so unlike this app's own sandboxed build
+      # environment, this can genuinely reach api.expo.dev if any tooling
+      # here ever needs it.
+      - name: Bundle (Android)
+        run: npx expo export --platform android
+
+      - name: Bundle (iOS)
+        run: npx expo export --platform ios
+
+  # End-to-end: real Postgres + the real backend + the real portal (Vite dev
+  # server), driven by Playwright. Runs when either side changes, since a
+  # backend API change can break the UI without touching portal/ at all.
+  e2e:
+    name: Portal e2e (Playwright)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.portal == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lessonteacher
+          POSTGRES_PASSWORD: lessonteacher_dev_pw
+          POSTGRES_DB: lessonteacher_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://lessonteacher:lessonteacher_dev_pw@localhost:5432/lessonteacher_e2e
+      # Read by portal/e2e/helpers.js to reach the DB (tokens, test admin, ID-verification bypass).
+      E2E_DATABASE_URL: postgres://lessonteacher:lessonteacher_dev_pw@localhost:5432/lessonteacher_e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            portal/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: portal
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: portal
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          PORT: '4000'
+          NODE_ENV: development
+          JWT_ACCESS_SECRET: ci-access-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          # One run makes more auth calls than the production per-IP cap allows.
+          AUTH_RATE_LIMIT_MAX: '1000'
+          PAYMENT_PROVIDER: mock
+        run: |
+          nohup node src/server.js > /tmp/backend.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/api/health && break || sleep 2; done
+          curl -sf http://localhost:4000/api/health
+
+      - name: Seed catalog data
+        run: npm run seed:skills && npm run seed:badges
+        working-directory: backend
+
+      - name: Start portal
+        working-directory: portal
+        run: |
+          nohup npx vite --port 5173 > /tmp/vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:5173/ > /dev/null && break || sleep 2; done
+          curl -sf http://localhost:5173/ > /dev/null
+
+      - name: Run Playwright tests
+        run: npx playwright test
+        working-directory: portal
+
+      - name: Upload traces and logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            portal/test-results
+            /tmp/backend.log
+            /tmp/vite.log
+
+  docker:
+    name: Build & push Docker images
+    needs: [changes, backend-test, portal-build, e2e]
+    # Runs if the backend or portal job ran and succeeded, OR was skipped
+    # because that project didn't change — only fails the pipeline if one
+    # of them actually ran and failed.
+    if: |
+      always() &&
+      (needs.backend-test.result == 'success' || needs.backend-test.result == 'skipped') &&
+      (needs.portal-build.result == 'success' || needs.portal-build.result == 'skipped') &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.portal == 'true')
+    runs-on: ubuntu-latest
+    # Images are only pushed from main — PRs still get a build (see below)
+    # to catch a broken Dockerfile before merge, just not a publish.
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            context: backend
+            image: ghcr.io/${{ github.repository }}-backend
+          - name: portal
+            context: portal
+            image: ghcr.io/${{ github.repository }}-portal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ matrix.image }}:latest
+            ${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

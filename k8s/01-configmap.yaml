@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lesson-teacher-config
+  namespace: lesson-teacher
+data:
+  NODE_ENV: 'production'
+  PORT: '4000'
+  JWT_ACCESS_TTL: '15m'
+  JWT_REFRESH_TTL_DAYS: '30'
+  PAYMENT_PROVIDER: 'paystack' # switch to 'mock' only for a staging/demo environment
+  STORAGE_PROVIDER: 'cloudinary' # 'local' writes to the pod's ephemeral filesystem — fine for one replica, lost on every restart otherwise
+  MEDIASOUP_LISTEN_IP: '0.0.0.0'
+  MEDIASOUP_MIN_PORT: '40000'
+  MEDIASOUP_MAX_PORT: '40100'
+  # MEDIASOUP_ANNOUNCED_IP is intentionally NOT set here — see 04-backend.yaml,
+  # where it's populated per-pod from the node's IP via the downward API.
+  # A single value in a ConfigMap can't be correct for more than one node.

@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.production
+!.env.example
+backend/uploads/*
+!backend/uploads/.gitkeep
+portal/dist/
+portal/release/
+portal/test-results/
+portal/playwright-report/
+mobile/.expo/
+*.log
+.DS_Store
