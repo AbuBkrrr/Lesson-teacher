@@ -42,25 +42,33 @@ function addMinutes(time, mins) {
   return total >= 24 * 60 ? '24:00' : `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
+/** Allowed lesson lengths in minutes. */
+const DURATIONS = [30, 45, 60, 90, 120];
+
 /** True if no slots are published, or the whole lesson fits inside one slot. */
-async function withinAvailability(tutorId, iso) {
+async function withinAvailability(tutorId, iso, durationMinutes = LESSON_MINUTES) {
   const slots = await db.prepare('SELECT day_of_week, start_time, end_time FROM tutor_availability WHERE tutor_id = ?').all(tutorId);
   if (slots.length === 0) return true;
   const profile = await db.prepare('SELECT timezone FROM tutor_profiles WHERE user_id = ?').get(tutorId);
   const tz = isValidTimeZone(profile?.timezone) ? profile.timezone : DEFAULT_TZ;
   const { dow, time } = localParts(iso, tz);
-  const end = addMinutes(time, LESSON_MINUTES);
+  const end = addMinutes(time, durationMinutes);
   return slots.some((s) => s.day_of_week === dow && s.start_time <= time && s.end_time >= end);
 }
 
-/** A different confirmed booking of this tutor overlapping the proposed hour. */
-async function findConflict(tutorId, iso, excludeBookingId) {
+/** A different confirmed booking of this tutor overlapping the proposed lesson. */
+async function findConflict(tutorId, iso, excludeBookingId, durationMinutes = LESSON_MINUTES) {
   const start = new Date(iso).getTime();
+  const end = start + durationMinutes * 60 * 1000;
   const rows = await db
-    .prepare("SELECT id, scheduled_at FROM bookings WHERE tutor_id = ? AND status = 'confirmed' AND scheduled_at IS NOT NULL AND deleted_at IS NULL AND id <> ?")
+    .prepare("SELECT id, scheduled_at, duration_minutes FROM bookings WHERE tutor_id = ? AND status = 'confirmed' AND scheduled_at IS NOT NULL AND deleted_at IS NULL AND id <> ?")
     .all(tutorId, excludeBookingId || '');
-  const span = LESSON_MINUTES * 60 * 1000;
-  return rows.find((r) => { const s = new Date(r.scheduled_at).getTime(); return !Number.isNaN(s) && s < start + span && start < s + span; }) || null;
+  return rows.find((r) => {
+    const s = new Date(r.scheduled_at).getTime();
+    if (Number.isNaN(s)) return false;
+    const e = s + (Number(r.duration_minutes) || LESSON_MINUTES) * 60 * 1000;
+    return s < end && start < e;
+  }) || null;
 }
 
-module.exports = { LESSON_MINUTES, DEFAULT_TZ, isValidTimeZone, normalizeScheduledAt, withinAvailability, findConflict };
+module.exports = { LESSON_MINUTES, DURATIONS, DEFAULT_TZ, isValidTimeZone, normalizeScheduledAt, withinAvailability, findConflict };

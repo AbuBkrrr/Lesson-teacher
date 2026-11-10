@@ -175,6 +175,23 @@ const templates = {
     subject: 'Your audition video is ready',
     body: `The tutor you requested an audition from has uploaded their video. Log in to review it.`,
   }),
+  auditionRequested: (parentName, type) => ({
+    type: 'audition_requested',
+    subject: 'New audition request',
+    body: `${parentName} has asked you for a ${type} audition. Log in to respond.`,
+  }),
+  auditionReviewed: (parentName, decision) => ({
+    type: 'audition_reviewed',
+    subject: decision === 'accepted' ? 'Your audition was accepted' : 'Audition feedback received',
+    body: decision === 'accepted'
+      ? `${parentName} accepted your audition. Expect a booking request soon.`
+      : `${parentName} reviewed your audition and decided not to go ahead this time. Open Auditions to read their feedback.`,
+  }),
+  lessonReportReady: (tutorName, subject) => ({
+    type: 'lesson_report',
+    subject: 'New lesson report',
+    body: `${tutorName} wrote a report for your ${subject || 'lesson'}. Open Progress to read it.`,
+  }),
   auditionDeclined: () => ({
     type: 'audition_declined',
     subject: 'Audition request declined',
