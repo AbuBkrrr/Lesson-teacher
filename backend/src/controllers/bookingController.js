@@ -359,4 +359,22 @@ async function ics(req, res) {
   res.set('Content-Type', 'text/calendar; charset=utf-8').set('Content-Disposition', 'attachment; filename="lesson.ics"').send(body);
 }
 
-module.exports = { reschedule, ics, create, listMine, getOne, updateStatus };
+/** GET /api/bookings/:id/call-chat — the in-lesson chat log (participants, including the child, and admins). */
+async function callChat(req, res) {
+  const b = await db.prepare('SELECT * FROM bookings WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!b) return res.status(404).json({ error: 'Booking not found' });
+  let allowed = req.user.role === 'super_admin' || [b.tutor_id, b.parent_id].includes(req.user.id);
+  if (!allowed && req.user.role === 'child' && b.child_id) {
+    const c = await db.prepare('SELECT user_id FROM children WHERE id = ?').get(b.child_id);
+    allowed = !!c && c.user_id === req.user.id;
+  }
+  if (!allowed) return res.status(403).json({ error: 'Not your booking' });
+  const messages = await db.prepare(
+    `SELECT m.id, m.sender_id, m.sender_role, m.body, m.created_at, u.full_name AS sender_name
+       FROM lesson_call_messages m JOIN users u ON u.id = m.sender_id
+      WHERE m.booking_id = ? ORDER BY m.created_at`
+  ).all(b.id);
+  res.json({ messages });
+}
+
+module.exports = { callChat, reschedule, ics, create, listMine, getOne, updateStatus };

@@ -270,4 +270,122 @@ describe('SFU signaling (real mediasoup engine, real socket.io transport)', () =
     parentSocket.disconnect();
     tutorSocketNew.disconnect();
   });
+
+  it('screen share: a second video producer is tagged as screen, announced to the room, and can be stopped', async () => {
+    const { bookingId, tutorToken, parentToken } = await setupConfirmedBooking();
+    const tutor = await connectSocket(tutorToken);
+    const parent = await connectSocket(parentToken);
+    await emitAck(parent, 'lesson:join', bookingId);
+    await emitAck(tutor, 'lesson:join', bookingId);
+    const t = await emitAck(tutor, 'lesson:create_transport', { bookingId, direction: 'send' });
+    await emitAck(tutor, 'lesson:connect_transport', { bookingId, transportId: t.params.id, dtlsParameters: FAKE_DTLS_PARAMETERS });
+
+    const announced = new Promise((resolve) => parent.once('lesson:new_producer', resolve));
+    const screen = await emitAck(tutor, 'lesson:produce', { bookingId, transportId: t.params.id, kind: 'video', rtpParameters: VIDEO_RTP_PARAMETERS, source: 'screen' });
+    expect(screen.ok).toBe(true);
+    expect((await announced).source).toBe('screen');
+
+    const again = await emitAck(tutor, 'lesson:produce', { bookingId, transportId: t.params.id, kind: 'video', rtpParameters: { ...VIDEO_RTP_PARAMETERS, mid: 'V2', encodings: [{ ssrc: 33333333 }] }, source: 'screen' });
+    expect(again.ok).toBe(false);
+
+    // A late joiner learns the share's source too.
+    const parent2 = await connectSocket(parentToken);
+    const rejoin = await emitAck(parent2, 'lesson:join', bookingId);
+    expect(rejoin.existingProducers.find((p) => p.producerId === screen.id).source).toBe('screen');
+
+    const closed = new Promise((resolve) => parent2.once('lesson:producer_closed', resolve));
+    const stop = await emitAck(tutor, 'lesson:close_producer', { bookingId, producerId: screen.id });
+    expect(stop.ok).toBe(true);
+    expect((await closed).source).toBe('screen');
+
+    tutor.disconnect(); parent.disconnect(); parent2.disconnect();
+  });
+
+  it('whiteboard strokes are validated, broadcast, undone, cleared only by the tutor, and saved when the room closes', async () => {
+    const { bookingId, tutorToken, parentToken } = await setupConfirmedBooking();
+    const tutor = await connectSocket(tutorToken);
+    const parent = await connectSocket(parentToken);
+    await emitAck(tutor, 'lesson:join', bookingId);
+    await emitAck(parent, 'lesson:join', bookingId);
+
+    const bad = await emitAck(parent, 'lesson:wb_stroke', { bookingId, stroke: { points: [[2, 2]] } });
+    expect(bad.ok).toBe(false);
+
+    const received = new Promise((resolve) => tutor.once('lesson:wb_stroke', resolve));
+    const ok = await emitAck(parent, 'lesson:wb_stroke', { bookingId, stroke: { id: 's1', color: '#ff0000', width: 4, points: [[0.1, 0.1], [0.5, 0.5]] } });
+    expect(ok.ok).toBe(true);
+    expect((await received).points).toEqual([[0.1, 0.1], [0.5, 0.5]]);
+    await emitAck(tutor, 'lesson:wb_stroke', { bookingId, stroke: { id: 's2', points: [[0.2, 0.2]] } });
+
+    const undo = await emitAck(parent, 'lesson:wb_undo', { bookingId });
+    expect(undo.id).toBe('s1'); // only removes the parent's own stroke
+
+    const notAllowed = await emitAck(parent, 'lesson:wb_clear', { bookingId });
+    expect(notAllowed.ok).toBe(false);
+
+    tutor.disconnect(); parent.disconnect();
+    await new Promise((r) => setTimeout(r, 400)); // room closes and saves
+
+    const tutorAgain = await connectSocket(tutorToken);
+    const join = await emitAck(tutorAgain, 'lesson:join', bookingId);
+    expect(join.whiteboard.map((s) => s.id)).toEqual(['s2']);
+    const cleared = await emitAck(tutorAgain, 'lesson:wb_clear', { bookingId });
+    expect(cleared.ok).toBe(true);
+    tutorAgain.disconnect();
+  });
+
+  it('in-call chat is broadcast, stored, returned to late joiners and readable by the parent afterwards', async () => {
+    const { bookingId, tutorToken, parentToken } = await setupConfirmedBooking();
+    const tutor = await connectSocket(tutorToken);
+    const parent = await connectSocket(parentToken);
+    await emitAck(tutor, 'lesson:join', bookingId);
+    await emitAck(parent, 'lesson:join', bookingId);
+
+    const empty = await emitAck(tutor, 'lesson:chat', { bookingId, text: '   ' });
+    expect(empty.ok).toBe(false);
+    const got = new Promise((resolve) => parent.once('lesson:chat', resolve));
+    const sent = await emitAck(tutor, 'lesson:chat', { bookingId, text: 'Open page 12 please' });
+    expect(sent.ok).toBe(true);
+    expect((await got)).toMatchObject({ body: 'Open page 12 please', sender_role: 'tutor' });
+
+    parent.disconnect();
+    const parent2 = await connectSocket(parentToken);
+    const join = await emitAck(parent2, 'lesson:join', bookingId);
+    expect(join.chat.map((m) => m.body)).toEqual(['Open page 12 please']);
+
+    const log = await request(app).get(`/api/bookings/${bookingId}/call-chat`).set('Authorization', `Bearer ${parentToken}`);
+    expect(log.status).toBe(200);
+    expect(log.body.messages[0].body).toBe('Open page 12 please');
+    const { res: stranger } = await signupParent(app, { email: `sfu_chat_stranger_${Date.now()}@example.com` });
+    const denied = await request(app).get(`/api/bookings/${bookingId}/call-chat`).set('Authorization', `Bearer ${stranger.body.access_token}`);
+    expect(denied.status).toBe(403);
+
+    tutor.disconnect(); parent2.disconnect();
+  });
+
+  it('the child on the booking can join the call as a student', async () => {
+    const { res: tutorRes } = await signupTutor(app, { email: `sfu_ct_${Date.now()}@example.com` });
+    const { res: parentRes } = await signupParent(app, { email: `sfu_cp_${Date.now()}@example.com` });
+    const tutorToken = tutorRes.body.access_token;
+    const parentToken = parentRes.body.access_token;
+    await request(app).put('/api/tutors/me').set('Authorization', `Bearer ${tutorToken}`).send({ hourly_rate: 4000, currency: 'NGN', subjects: [] });
+    await verifyUser(tutorRes.body.user.id);
+    await verifyUser(parentRes.body.user.id);
+    const child = (await request(app).post('/api/children').set('Authorization', `Bearer ${parentToken}`).send({ full_name: 'Call Kid' })).body.child;
+    const invite = await request(app).post(`/api/children/${child.id}/invite`).set('Authorization', `Bearer ${parentToken}`);
+    const kid = await request(app).post('/api/auth/child/redeem-invite').send({ code: invite.body.code, username: `callkid${Date.now()}`, password: 'KidPass1234' });
+    expect(kid.status).toBe(201);
+
+    const booking = await request(app).post('/api/bookings').set('Authorization', `Bearer ${parentToken}`).send({ tutor_id: tutorRes.body.user.id, child_id: child.id, subject: 'Maths' });
+    const bookingId = booking.body.booking.id;
+    await request(app).patch(`/api/bookings/${bookingId}/status`).set('Authorization', `Bearer ${tutorToken}`).send({ status: 'confirmed' });
+    const pay = await request(app).post('/api/payments/initialize').set('Authorization', `Bearer ${parentToken}`).send({ booking_id: bookingId, method: 'gateway' });
+    await request(app).post('/api/payments/mock/complete').set('Authorization', `Bearer ${parentToken}`).send({ reference: pay.body.reference });
+
+    const kidSocket = await connectSocket(kid.body.access_token);
+    const join = await emitAck(kidSocket, 'lesson:join', bookingId);
+    expect(join.ok).toBe(true);
+    expect(join.role).toBe('student');
+    kidSocket.disconnect();
+  });
 });

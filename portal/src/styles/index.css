@@ -584,6 +584,35 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .lt-lesson-controls { bottom: 12px; padding: 8px 12px; gap: 8px; }
 }
 
+/* Lesson room: side panel (chat / whiteboard), screen share tile */
+.lt-lesson-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; padding-bottom: 110px; }
+.lt-lesson-stage { min-width: 0; }
+.lt-lesson-video-grid.has-screen { grid-template-columns: 1fr; }
+.lt-lesson-layout > .lt-lesson-self-view { position: absolute; top: 8px; left: 8px; right: auto; bottom: auto; width: 160px; z-index: 5; }
+.lt-lesson-sound-btn { position: absolute; top: 8px; right: 8px; }
+.lt-lesson-remote-tile.is-screen { aspect-ratio: 16 / 9; background: #000; }
+.lt-lesson-side { display: flex; flex-direction: column; gap: 8px; padding: 12px; max-height: 70vh; }
+.lt-lesson-tabs { display: flex; gap: 8px; }
+.lt-lesson-chat { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.lt-lesson-chat-log { overflow-y: auto; min-height: 200px; max-height: 52vh; display: flex; flex-direction: column; gap: 6px; }
+.lt-lesson-chat-msg { background: var(--lt-bg); border-radius: var(--lt-radius-sm); padding: 6px 10px; max-width: 92%; overflow-wrap: anywhere; }
+.lt-lesson-chat-msg.is-mine { align-self: flex-end; background: var(--lt-primary-tint-strong); }
+.lt-lesson-chat-who { display: block; font-size: 0.72rem; color: var(--lt-muted); font-weight: 600; }
+.lt-lesson-chat-form { display: flex; gap: 6px; }
+.lt-lesson-chat-form .lt-field { flex: 1; min-width: 0; }
+.lt-lesson-board { grid-column: 1 / -1; padding: 12px; }
+.lt-wb { display: flex; flex-direction: column; gap: 8px; }
+.lt-wb-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lt-wb-sep { width: 1px; height: 22px; background: var(--lt-border); margin: 0 2px; }
+.lt-wb-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--lt-card); box-shadow: 0 0 0 1px var(--lt-border); cursor: pointer; padding: 0; }
+.lt-wb-swatch.is-active { box-shadow: 0 0 0 2px var(--lt-primary); }
+.lt-wb-surface { width: 100%; }
+.lt-wb-surface canvas { display: block; background: #fff; border: 1px solid var(--lt-border); border-radius: var(--lt-radius-sm); cursor: crosshair; }
+@media (max-width: 900px) {
+  .lt-lesson-layout { grid-template-columns: 1fr; }
+  .lt-lesson-side { max-height: none; }
+}
+
 /* Identity verification status badges */
 .lt-status-ok { border-left: 4px solid #16a34a; }
 .lt-status-warn { border-left: 4px solid #f59e0b; }
@@ -600,3 +629,4 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lt-conv-badge { background: var(--lt-primary); color: #fff; border-radius: 999px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; flex-shrink: 0; }
 .lt-day-sep { align-self: center; background: var(--lt-bg); color: var(--lt-muted); font-size: 0.7rem; padding: 2px 10px; border-radius: 999px; margin: 6px 0; }
 .lt-chat-status { font-size: 0.75rem; color: var(--lt-primary); min-height: 1.1em; }
+.lt-muted { color: var(--lt-muted); }

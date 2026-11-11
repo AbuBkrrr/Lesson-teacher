@@ -84,7 +84,7 @@ function Routed() {
       <Route path="/messages" element={<RequireRole role={['tutor', 'parent', 'adult_student', 'child']}><Messages /></RequireRole>} />
       <Route path="/notifications" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Notifications /></RequireRole>} />
       <Route path="/account" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Account /></RequireRole>} />
-      <Route path="/lessons/:bookingId" element={<RequireRole role={['tutor', 'parent', 'adult_student']}><LessonRoom /></RequireRole>} />
+      <Route path="/lessons/:bookingId" element={<RequireRole role={['tutor', 'parent', 'adult_student', 'child']}><LessonRoom /></RequireRole>} />
       <Route path="/curriculum" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Curriculum /></RequireRole>} />
       <Route path="/assignments" element={<RequireRole role={['parent', 'adult_student', 'child']}><StudentAssignments /></RequireRole>} />
       <Route path="/my-badges" element={<RequireRole role="child"><ChildBadges /></RequireRole>} />

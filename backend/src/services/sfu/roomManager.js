@@ -28,6 +28,10 @@ class Room {
     this.id = id;
     this.router = router;
     this.peers = new Map(); // userId -> Peer
+    this.whiteboard = []; // strokes; loaded from / saved to lesson_whiteboards by lessonSignaling
+    this.whiteboardLoaded = false;
+    this.whiteboardDirty = false;
+    this.onClose = null; // async hook run before the router closes (used to persist the whiteboard)
   }
 
   isEmpty() {
@@ -35,6 +39,9 @@ class Room {
   }
 
   async close() {
+    if (this.onClose) {
+      try { await this.onClose(this); } catch (err) { console.error('[sfu] room close hook failed', err); }
+    }
     for (const peer of this.peers.values()) peer.close();
     this.peers.clear();
     this.router.close(); // closing the router also closes every transport/producer/consumer it owns
@@ -47,7 +54,7 @@ class Peer {
   constructor(userId, socketId, role) {
     this.userId = userId;
     this.socketId = socketId;
-    this.role = role; // 'tutor' | 'parent' — for labeling remote video tiles client-side
+    this.role = role; // 'tutor' | 'parent' | 'student' — for labeling remote video tiles client-side
     this.transports = new Map(); // transportId -> WebRtcTransport
     this.producers = new Map(); // producerId -> Producer
     this.consumers = new Map(); // consumerId -> Consumer
