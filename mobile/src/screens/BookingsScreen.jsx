@@ -74,11 +74,12 @@ export default function BookingsScreen({ navigation }) {
     setRefreshing(false);
   }
 
-  async function updateStatus(id, status) {
+  async function updateStatus(id, status, opts) {
     setBusyId(id);
     setError(null);
     try {
-      await bookings.updateStatus(id, status);
+      const res = await bookings.updateStatus(id, status, opts);
+      if (res.skipped?.length) setError(`${res.updated_ids.length} lessons updated; ${res.skipped.length} skipped: ${res.skipped[0].reason}`);
       await load();
     } catch (e) {
       setError(e.message);
@@ -361,7 +362,7 @@ export default function BookingsScreen({ navigation }) {
                 <StatusBadge status={b.status} />
               </View>
               {b.child_name && <Text style={styles.metaText}>Student: {b.child_name}</Text>}
-              <Text style={styles.metaText}>{b.subject || 'General tutoring'}</Text>
+              <Text style={styles.metaText}>{b.subject || 'General tutoring'}{b.duration_minutes && b.duration_minutes !== 60 ? ` · ${b.duration_minutes} min` : ''}{b.series_id ? ' · weekly series' : ''}</Text>
               {b.scheduled_at
                 ? <Text style={styles.metaText}>{new Date(b.scheduled_at).toLocaleString()}</Text>
                 : ['pending', 'confirmed'].includes(b.status) && <Text style={styles.metaText}>No time set yet</Text>}
@@ -378,7 +379,7 @@ export default function BookingsScreen({ navigation }) {
                     <Text style={commonStyles.secondaryButtonText}>{b.scheduled_at ? 'Reschedule' : 'Set time'}</Text>
                   </Pressable>
                 )}
-                {b.status === 'confirmed' && payment?.status === 'successful' && (
+                {b.status === 'confirmed' && (payment?.status === 'successful' || user?.role === 'child') && (
                   <Pressable style={commonStyles.primaryButton} onPress={() => navigation.navigate('LessonRoom', { bookingId: b.id })}>
                     <Text style={commonStyles.primaryButtonText}>Join lesson</Text>
                   </Pressable>
@@ -386,6 +387,22 @@ export default function BookingsScreen({ navigation }) {
                 {isParentLike && b.status === 'confirmed' && payment?.status !== 'successful' && payment?.status !== 'awaiting_confirmation' && (
                   <Pressable style={commonStyles.secondaryButton} disabled={busyId === b.id} onPress={() => setMethodPickerFor(b.id)}>
                     <Text style={commonStyles.secondaryButtonText}>Pay now</Text>
+                  </Pressable>
+                )}
+                {['confirmed', 'completed'].includes(b.status) && (
+                  <Pressable style={commonStyles.secondaryButton} onPress={() => navigation.navigate('LessonReport', { booking: b })}>
+                    <Text style={commonStyles.secondaryButtonText}>{isTutor ? 'Lesson report' : 'View report'}</Text>
+                  </Pressable>
+                )}
+                {b.series_id && isTutor && b.status === 'pending' && (
+                  <Pressable style={commonStyles.primaryButton} disabled={busyId === b.id} onPress={() => updateStatus(b.id, 'confirmed', { apply_to_series: true })}>
+                    <Text style={commonStyles.primaryButtonText}>Confirm whole series</Text>
+                  </Pressable>
+                )}
+                {b.series_id && (isTutor || isParentLike) && ['pending', 'confirmed'].includes(b.status) && (
+                  <Pressable style={commonStyles.dangerButton} disabled={busyId === b.id}
+                    onPress={() => confirmAction('Cancel the rest of this weekly series?', 'Every remaining lesson in the series will be cancelled.', () => updateStatus(b.id, 'cancelled', { apply_to_series: true }), 'Yes, cancel all')}>
+                    <Text style={commonStyles.dangerButtonText}>Cancel series</Text>
                   </Pressable>
                 )}
                 {canMessage(b) && (

@@ -222,6 +222,12 @@ export async function signup(payload) {
   await storeSession(data);
   return data;
 }
+/** A child creates their own login with the one-time code their parent generated. */
+export async function redeemChildInvite(code, username, password) {
+  const data = await request('/auth/child/redeem-invite', { method: 'POST', body: { code, username, password } });
+  await storeSession(data);
+  return data;
+}
 export async function logout() {
   if (refreshToken) {
     fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) }).catch(() => {});
@@ -265,7 +271,10 @@ export const skills = {
   create: (payload) => request('/skills', { method: 'POST', body: payload }),
   remove: (id) => request(`/skills/${id}`, { method: 'DELETE' }),
   mine: () => request('/skills/mine'),
-  addMine: (skill_id, proficiency, evidence_url) => request('/skills/mine', { method: 'POST', body: { skill_id, proficiency, evidence_url } }),
+  addMine: (skill_id, proficiency, evidence_urls) => request('/skills/mine', {
+    method: 'POST',
+    body: { skill_id, proficiency, evidence_urls: Array.isArray(evidence_urls) ? evidence_urls : (evidence_urls ? [evidence_urls] : []) },
+  }),
   removeMine: (skillId) => request(`/skills/mine/${skillId}`, { method: 'DELETE' }),
 };
 
@@ -287,7 +296,9 @@ export const bookings = {
   create: (payload) => request('/bookings', { method: 'POST', body: payload }),
   mine: () => request('/bookings/mine'),
   getOne: (id) => request(`/bookings/${id}`),
-  updateStatus: (id, status) => request(`/bookings/${id}/status`, { method: 'PATCH', body: { status } }),
+  updateStatus: (id, status, opts = {}) => request(`/bookings/${id}/status`, { method: 'PATCH', body: { status, ...opts } }),
+  report: (id) => request(`/bookings/${id}/report`),
+  saveReport: (id, payload) => request(`/bookings/${id}/report`, { method: 'PUT', body: payload }),
   reschedule: (id, scheduled_at) => request(`/bookings/${id}/schedule`, { method: 'PATCH', body: { scheduled_at } }),
 };
 
@@ -295,10 +306,17 @@ export const bookings = {
 export const auditions = {
   create: (payload) => request('/auditions', { method: 'POST', body: payload }),
   mine: () => request('/auditions/mine'),
-  updateStatus: (id, status, video_url) => request(`/auditions/${id}/status`, { method: 'PATCH', body: { status, video_url } }),
+  updateStatus: (id, status, video_url, extra = {}) => request(`/auditions/${id}/status`, { method: 'PATCH', body: { status, video_url, ...extra } }),
+  review: (id, payload) => request(`/auditions/${id}/review`, { method: 'PATCH', body: payload }),
 };
 
 // ---- Curriculum ----
+export const progress = {
+  me: () => request('/progress/me'),
+  family: () => request('/progress/family'),
+  child: (childId) => request(`/progress/children/${childId}`),
+};
+
 export const curriculum = {
   list: (params = {}) => {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v))).toString();

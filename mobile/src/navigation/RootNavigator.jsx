@@ -34,7 +34,10 @@ import TutorSkillsScreen from '../screens/TutorSkillsScreen';
 import TutorEarningsScreen from '../screens/TutorEarningsScreen';
 import TutorMaterialsScreen from '../screens/TutorMaterialsScreen';
 import TutorAssignmentsScreen from '../screens/TutorAssignmentsScreen';
-import TutorAuditionsScreen from '../screens/TutorAuditionsScreen';
+import AuditionsScreen from '../screens/AuditionsScreen';
+import ProgressScreen from '../screens/ProgressScreen';
+import LessonReportScreen from '../screens/LessonReportScreen';
+import ChildInviteScreen from '../screens/ChildInviteScreen';
 import TutorAvailabilityScreen from '../screens/TutorAvailabilityScreen';
 import SavedTutorsScreen from '../screens/SavedTutorsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -70,6 +73,7 @@ function AuthNavigator() {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <AuthStack.Screen name="ChildInvite" component={ChildInviteScreen} />
     </AuthStack.Navigator>
   );
 }
@@ -107,6 +111,7 @@ function AccountNavigator() {
       <AccountStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <AccountStack.Screen name="LinkedDevices" component={LinkedDevicesScreen} options={{ title: 'Linked devices & backup' }} />
       <AccountStack.Screen name="MyChildren" component={MyChildrenScreen} options={{ title: 'My children' }} />
+      <AccountStack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
       <AccountStack.Screen name="Monitor" component={MonitorScreen} options={{ title: 'Monitor' }} />
       <AccountStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <AccountStack.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ title: 'Subscription' }} />
@@ -169,6 +174,7 @@ function ParentTabs() {
     <Tabs.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary }}>
       <Tabs.Screen name="Discover" component={DiscoverNavigator} />
       <Tabs.Screen name="Bookings" component={BookingsScreen} options={{ headerShown: true }} />
+      <Tabs.Screen name="Auditions" component={AuditionsScreen} />
       <Tabs.Screen name="Messages" component={MessagesNavigator} options={{ tabBarBadge: unread }} />
       <Tabs.Screen name="Account" component={AccountNavigator} />
     </Tabs.Navigator>
@@ -180,6 +186,7 @@ function ChildTabs() {
   return (
     <Tabs.Navigator screenOptions={{ headerShown: true, tabBarActiveTintColor: colors.primary }}>
       <Tabs.Screen name="Bookings" component={BookingsScreen} />
+      <Tabs.Screen name="Progress" component={ProgressScreen} options={{ title: 'My progress' }} />
       <Tabs.Screen name="Messages" component={MessagesNavigator} options={{ headerShown: false, tabBarBadge: unread }} />
       <Tabs.Screen name="Account" component={AccountNavigator} options={{ headerShown: false }} />
     </Tabs.Navigator>
@@ -191,7 +198,7 @@ function TutorTabs() {
   return (
     <Tabs.Navigator screenOptions={{ headerShown: true, tabBarActiveTintColor: colors.primary }}>
       <Tabs.Screen name="Bookings" component={BookingsScreen} />
-      <Tabs.Screen name="Auditions" component={TutorAuditionsScreen} options={{ headerShown: false }} />
+      <Tabs.Screen name="Auditions" component={AuditionsScreen} options={{ headerShown: false }} />
       <Tabs.Screen name="Requests" component={TutorRequestsScreen} options={{ headerShown: false }} />
       <Tabs.Screen name="Messages" component={MessagesNavigator} options={{ headerShown: false, tabBarBadge: unread }} />
       <Tabs.Screen name="Account" component={AccountNavigator} options={{ headerShown: false }} />
@@ -268,6 +275,7 @@ export default function RootNavigator() {
         ) : (
           <>
             <RootStack.Screen name="MainTabs" component={RoleTabs} />
+            <RootStack.Screen name="LessonReport" component={LessonReportScreen} options={{ headerShown: true, title: 'Lesson report' }} />
             <RootStack.Screen
               name="LessonRoom"
               component={LessonRoomScreen}

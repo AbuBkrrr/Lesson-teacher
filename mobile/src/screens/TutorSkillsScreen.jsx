@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { TextInput, View, Text, ScrollView, Pressable } from 'react-native';
 import { skills } from '../api/client';
 import { commonStyles, spacing, colors } from '../theme';
 
 const CATEGORIES = ['academic', 'mental', 'physical', 'creative', 'life', 'career'];
-const PROFICIENCIES = ['beginner', 'intermediate', 'expert'];
+const PROFICIENCIES = ['beginner', 'intermediate', 'advanced', 'expert'];
 
 export default function TutorSkillsScreen() {
   const [catalog, setCatalog] = useState([]);
@@ -12,6 +12,7 @@ export default function TutorSkillsScreen() {
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [proficiency, setProficiency] = useState({});
+  const [evidence, setEvidence] = useState({});
 
   function load() {
     skills.list().then((d) => setCatalog(d.skills)).catch((e) => setError(e.message));
@@ -25,7 +26,8 @@ export default function TutorSkillsScreen() {
     setBusyId(skillId);
     setError(null);
     try {
-      await skills.addMine(skillId, proficiency[skillId] || 'intermediate');
+      const links = (evidence[skillId] || '').split(/[\s,]+/).map((l) => l.trim()).filter(Boolean);
+      await skills.addMine(skillId, proficiency[skillId] || 'intermediate', links);
       load();
     } catch (e) {
       setError(e.message);
@@ -68,7 +70,7 @@ export default function TutorSkillsScreen() {
                 <View key={s.id} style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                   <Text style={{ marginBottom: spacing.xs }}>{s.icon} {s.name}</Text>
                   {!attached && (
-                    <View style={{ flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs }}>
                       {PROFICIENCIES.map((p) => (
                         <Pressable
                           key={p}
@@ -79,6 +81,16 @@ export default function TutorSkillsScreen() {
                         </Pressable>
                       ))}
                     </View>
+                  )}
+                  {!attached && (
+                    <TextInput
+                      style={[commonStyles.input, { marginBottom: spacing.xs }]}
+                      placeholder="Certificate / portfolio links (optional)"
+                      autoCapitalize="none" keyboardType="url"
+                      value={evidence[s.id] || ''}
+                      onChangeText={(v) => setEvidence((e) => ({ ...e, [s.id]: v }))}
+                      accessibilityLabel={`Evidence links for ${s.name}`}
+                    />
                   )}
                   <Pressable
                     style={attached ? commonStyles.dangerButton : commonStyles.primaryButton}

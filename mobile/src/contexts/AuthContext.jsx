@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { hydrateSession, setSessionExpiredHandler, login as apiLogin, deviceLink, signup as apiSignup, logout as apiLogout } from '../api/client';
+import { hydrateSession, setSessionExpiredHandler, login as apiLogin, deviceLink, signup as apiSignup, logout as apiLogout, redeemChildInvite as apiRedeemChildInvite } from '../api/client';
 import { registerForPushNotifications, unregisterPushNotifications } from '../push';
 
 const AuthContext = createContext(null);
@@ -46,13 +46,20 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
+  const redeemInvite = useCallback(async (code, username, password) => {
+    const data = await apiRedeemChildInvite(code, username, password);
+    setUser(data.user);
+    registerForPushNotifications();
+    return data.user;
+  }, []);
+
   const logout = useCallback(async () => {
     await unregisterPushNotifications();
     await apiLogout();
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, signup, logout, completeDeviceLink }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, signup, logout, completeDeviceLink, redeemInvite }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
