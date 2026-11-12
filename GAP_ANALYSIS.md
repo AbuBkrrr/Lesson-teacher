@@ -38,14 +38,22 @@ Date: 2026-11-10. Compared `My_Lesson_teacher.txt` with `lesson-teacher.zip`.
 - Admin: dashboard, users, tutor approval, ID verification (Didit KYC), payments, refunds, payouts, schools, announcements, settings, audit log, impersonation.
 - Sentry, Prometheus metrics, load test script, CI and release workflows, 23 Playwright e2e specs.
 
-## Features: missing or partial
-1. **Audition types** (video, live, portfolio, challenge), linked child + skill, parent **rating 1–5, feedback, accept/reject decision**. Today it is only a status + video URL.
-2. **Child profile fields**: age, school, learning needs (only name + grade today).
-3. **Bookings**: skill link, end time / duration, stored price, **recurring bookings** (weekly series).
-4. **Lesson record + tutor progress notes** after each lesson (content, feedback, score).
-5. **Progress tracking per child per skill** (level, lessons completed, average score) and **progress report** screens for parent and child. Only badges/streaks exist.
-6. Tutor skill proficiency lacks `advanced`; only one evidence link per skill.
-7. **Lesson room**: no **screen share**, no **whiteboard**, no in-call chat or shared files.
-8. **Desktop QR pairing**: the code flow exists; QR display (desktop) + scan (phone) is missing.
-9. **Deployment for a single VPS**: `docker-compose.yml`, PM2 config, Nginx reverse proxy for API + WebSocket + portal, Let's Encrypt, backups, deploy guide.
-10. Stack items in the table above (TypeScript, Prisma, Redux) if you still want them.
+## Status after this round (2026-11-12)
+
+Decisions: keep JavaScript + raw SQL + React Context (TypeScript added gradually via `npm run typecheck`), keep mediasoup for video, Paystack in NGN, one 2–4 GB VPS.
+
+| Gap | Status |
+|---|---|
+| Audition types, child + skill, parent rating/feedback/accept-reject | Done (API, web, mobile) |
+| Child age, school, learning needs | Done (API, web, mobile) |
+| Booking skill, duration, fixed price, weekly recurring series | Done (API, web; series actions on mobile) |
+| Tutor lesson reports + per-skill progress, progress report screens | Done (API, web, mobile) |
+| Tutor skill "advanced" + several evidence links | Done (API, web, mobile) |
+| Lesson room: screen share, whiteboard, in-call chat; child can join | Done (web: all; mobile: chat, whiteboard, sees screen share) |
+| Desktop QR pairing | Done (desktop shows QR, phone scans) |
+| Parents had no Auditions screen on mobile | Fixed |
+| Child invite sign-up missing on mobile | Fixed (code or QR) |
+| Single-VPS deployment: Compose, Nginx, Let's Encrypt, PM2, backups | Done (`deploy/`, `DEPLOY.md`) |
+| Full rewrite to TypeScript / Prisma / Redux | Not done, by decision |
+
+Tests: backend Jest suite and portal Playwright suite both pass (see final report). Mobile: lint clean and Android bundle builds; not run on a device here.

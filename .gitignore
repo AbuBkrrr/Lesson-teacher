@@ -11,3 +11,4 @@ portal/playwright-report/
 mobile/.expo/
 *.log
 .DS_Store
+deploy/backups/

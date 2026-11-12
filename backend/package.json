@@ -14,7 +14,8 @@
     "loadtest": "node scripts/loadtest.js",
     "migrate": "node src/db/migrate.js",
     "migrate:new": "node src/db/migrate.js new",
-    "send-reminders": "node scripts/sendLessonReminders.js"
+    "send-reminders": "node scripts/sendLessonReminders.js",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "keywords": [],
   "author": "",
@@ -41,12 +42,17 @@
     "twilio": "^6.1.1"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "autocannon": "^8.0.0",
     "jest": "^30.4.2",
     "mailparser": "^3.9.39",
     "mediasoup-client": "^3.22.0",
     "smtp-server": "^3.19.22",
     "socket.io-client": "^4.8.3",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

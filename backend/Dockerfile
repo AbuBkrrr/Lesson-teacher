@@ -5,7 +5,7 @@
 # binaries for glibc linux only. On alpine (musl), npm install would fall
 # back to compiling the worker from source every time, which works but
 # adds several minutes to every build.
-FROM node:22-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 WORKDIR /app
 
 # Toolchain for mediasoup's from-source fallback (used if no prebuilt
@@ -21,7 +21,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 ## ---- runtime stage -------------------------------------------------------
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -32,7 +32,9 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --uid 1001 --create-home --shell /usr/sbin/nologin appuser
+    && useradd --uid 1001 --create-home --shell /usr/sbin/nologin appuser \
+    && npm install -g pm2@7.1.2 \
+    && npm cache clean --force
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -50,4 +52,6 @@ EXPOSE 40000-40100/tcp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD ["node", "-e", "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))"]
 
-CMD ["node", "src/server.js"]
+# PM2 keeps the API up and runs the reminder sweep every 5 minutes
+# (see ecosystem.config.js). `docker run ... node src/server.js` still works.
+CMD ["pm2-runtime", "ecosystem.config.js", "--env", "production"]
