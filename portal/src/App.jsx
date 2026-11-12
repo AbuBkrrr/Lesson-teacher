@@ -21,6 +21,7 @@ import Curriculum from './pages/Curriculum';
 import StudentAssignments from './pages/StudentAssignments';
 import StudentMaterials from './pages/StudentMaterials';
 import ChildBadges from './pages/ChildBadges';
+import Progress from './pages/Progress';
 import LessonRoom from './pages/LessonRoom';
 
 import SuperAdminDashboard from './pages/superadmin/Dashboard';
@@ -87,6 +88,8 @@ function Routed() {
       <Route path="/lessons/:bookingId" element={<RequireRole role={['tutor', 'parent', 'adult_student', 'child']}><LessonRoom /></RequireRole>} />
       <Route path="/curriculum" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Curriculum /></RequireRole>} />
       <Route path="/assignments" element={<RequireRole role={['parent', 'adult_student', 'child']}><StudentAssignments /></RequireRole>} />
+      <Route path="/my-progress" element={<RequireRole role="child"><Progress /></RequireRole>} />
+      <Route path="/parent/progress" element={<RequireRole role="parent"><Progress /></RequireRole>} />
       <Route path="/my-badges" element={<RequireRole role="child"><ChildBadges /></RequireRole>} />
       <Route path="/materials" element={<RequireRole role={['parent', 'adult_student', 'child']}><StudentMaterials /></RequireRole>} />
       <Route path="/subscriptions" element={<RequireRole role={['parent', 'adult_student', 'school_admin', 'super_admin']}><Subscriptions /></RequireRole>} />

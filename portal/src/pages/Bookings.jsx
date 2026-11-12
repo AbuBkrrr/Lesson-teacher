@@ -3,6 +3,7 @@ import useRefreshOnFocus from '../hooks/useRefreshOnFocus';
 import { formatLesson, localInputToIso, isoToLocalInput, nowLocalInput, browserTimeZone } from '../utils/time';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import LessonReport from '../components/LessonReport';
 import ConfirmButton from '../components/ConfirmButton';
 import StatusBadge from '../components/StatusBadge';
 import { bookings, payments, conversations, reviews, refundRequests } from '../api/client';
@@ -36,6 +37,7 @@ export default function Bookings() {
   }, [user]);
 
   // Inline panel (replaces window.prompt): one of review / refund open at a time.
+  const [reportFor, setReportFor] = useState(null); // booking row
   const [panel, setPanel] = useState(null); // { kind: 'review'|'refund', bookingId }
   const [panelForm, setPanelForm] = useState({ rating: 5, comment: '', reason: '', resolution: 'refund', when: '' });
   const [notice, setNotice] = useState(null);
@@ -93,11 +95,12 @@ export default function Bookings() {
   useEffect(load, [user?.role]);
   useRefreshOnFocus(load);
 
-  async function updateStatus(id, status) {
+  async function updateStatus(id, status, opts) {
     setBusyId(id);
     setError(null);
     try {
-      await bookings.updateStatus(id, status);
+      const res = await bookings.updateStatus(id, status, opts);
+      if (res.skipped?.length) setError(`${res.updated_ids.length} lessons updated; ${res.skipped.length} skipped: ${res.skipped[0].reason}`);
       load();
     } catch (e) {
       setError(e.message);
@@ -345,6 +348,8 @@ export default function Bookings() {
         </div>
       )}
 
+      {reportFor && <LessonReport booking={reportFor} canEdit={user?.role === 'tutor'} onClose={() => setReportFor(null)} />}
+
       <div className="lt-card">
         <table className="lt-table">
           <thead>
@@ -358,7 +363,7 @@ export default function Bookings() {
                 <tr key={b.id}>
                   <td data-label={otherPartyLabel}>{user?.role === 'tutor' ? b.parent_name : b.tutor_name}</td>
                   <td data-label="Student">{b.child_name || '—'}</td>
-                  <td data-label="Subject">{b.subject || '—'}</td>
+                  <td data-label="Subject">{b.subject || '—'}{b.duration_minutes && b.duration_minutes !== 60 ? ` (${b.duration_minutes} min)` : ''}{b.series_id && <div className="lt-helper-text">Weekly series</div>}</td>
                   <td data-label="Scheduled">{b.scheduled_at ? formatLesson(b.scheduled_at) : (['pending', 'confirmed'].includes(b.status) ? <span className="lt-helper-text">No time set</span> : '—')}</td>
                   <td data-label="Status"><StatusBadge status={b.status} /></td>
                   <td data-label="Payment">{payment ? <StatusBadge status={payment.status} /> : (['parent','adult_student'].includes(user?.role) ? '—' : '')}</td>
@@ -396,6 +401,18 @@ export default function Bookings() {
                       )}
                       {['parent','adult_student'].includes(user?.role) && b.status === 'completed' && (
                         <button className="lt-btn lt-btn--sm lt-btn--ghost" onClick={() => openPanel('refund', b.id)}>Refund/reschedule</button>
+                      )}
+                      {['confirmed', 'completed'].includes(b.status) && (user?.role === 'tutor' || ['parent', 'adult_student'].includes(user?.role)) && (
+                        <button className="lt-btn lt-btn--sm lt-btn--ghost" onClick={() => setReportFor(b)}>
+                          {user?.role === 'tutor' ? 'Lesson report' : 'View report'}
+                        </button>
+                      )}
+                      {b.series_id && user?.role === 'tutor' && b.status === 'pending' && (
+                        <button className="lt-btn lt-btn--sm" disabled={busyId === b.id} onClick={() => updateStatus(b.id, 'confirmed', { apply_to_series: true })}>Confirm whole series</button>
+                      )}
+                      {b.series_id && ['pending', 'confirmed'].includes(b.status) && ['parent', 'adult_student', 'tutor'].includes(user?.role) && (
+                        <ConfirmButton disabled={busyId === b.id} confirmLabel="Yes, cancel all" label="Cancel the rest of this weekly series"
+                          onConfirm={() => updateStatus(b.id, 'cancelled', { apply_to_series: true })}>Cancel series</ConfirmButton>
                       )}
                       {canMessage(b) && (
                         <button className="lt-btn lt-btn--sm lt-btn--secondary" disabled={busyId === b.id} onClick={() => startMessage(b)}>
