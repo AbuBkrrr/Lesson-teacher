@@ -2,6 +2,18 @@
 
 Everything (database, cache, API, web app, HTTPS) runs on a single server with Docker Compose.
 
+## Quick start (fresh Debian/Ubuntu server)
+
+As root on the server (`ssh root@<server-ip>`, e.g. from Windows PowerShell):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AbuBkrrr/lesson-teacher/complete-spec/deploy/server-setup.sh | bash -s -- <your-domain>
+```
+
+This does steps 1–2 below for you (firewall, swap, Docker, code, `.env` with generated secrets). Then set `LETSENCRYPT_EMAIL` and `PAYSTACK_SECRET_KEY` in `/opt/lesson-teacher/deploy/.env` and run step 3. No domain yet? Use `<ip-with-dashes>.sslip.io` (for example `102-68-85-97.sslip.io`), which points at your IP for free.
+
+The API refuses to start in production with mock payments (`PAYMENT_PROVIDER` unset or `mock`), because mock payments let anyone mark a lesson as paid. For a private test server only, set `ALLOW_MOCK_PAYMENTS=true`.
+
 ## 1. Server
 
 - Ubuntu 24.04, **2 vCPU and 2–4 GB RAM** minimum. 1 GB plans will run out of memory once video lessons start.

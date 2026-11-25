@@ -5,6 +5,14 @@ const { initSocket } = require('./realtime/socket');
 const { initWorkers } = require('./services/sfu/workerPool');
 const db = require('./config/db'); // starts applying the Postgres schema immediately
 
+// Mock payments let anyone mark a lesson as paid. Never run them in
+// production by accident (e.g. PAYMENT_PROVIDER left unset).
+const { getProvider } = require('./services/paymentProviders');
+if (process.env.NODE_ENV === 'production' && getProvider().name === 'mock' && process.env.ALLOW_MOCK_PAYMENTS !== 'true') {
+  console.error('Refusing to start: PAYMENT_PROVIDER is "mock" in production. Set PAYMENT_PROVIDER=paystack (and PAYSTACK_SECRET_KEY), or ALLOW_MOCK_PAYMENTS=true for a private test server.');
+  process.exit(1);
+}
+
 const app = createApp();
 const httpServer = http.createServer(app);
 const io = initSocket(httpServer);
