@@ -39,6 +39,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # The suite takes ~2 minutes; anything longer is a hang, not slowness.
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -50,6 +52,17 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # tests/integration/tutorListCache.test.js exercises the Redis cache
+      # (REDIS_URL in .env.test). Without this service that test fails and the
+      # Redis client's reconnect loop keeps Jest from ever exiting.
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
