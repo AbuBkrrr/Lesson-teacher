@@ -278,15 +278,18 @@ jobs:
         include:
           - name: backend
             context: backend
-            image: ghcr.io/${{ github.repository }}-backend
           - name: portal
             context: portal
-            image: ghcr.io/${{ github.repository }}-portal
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
+
+      # Registry names must be lowercase; the repository name (AbuBkrrr/Lesson-teacher) isn't.
+      - name: Image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         if: github.event_name == 'push'
@@ -302,7 +305,7 @@ jobs:
           context: ${{ matrix.context }}
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ${{ matrix.image }}:latest
-            ${{ matrix.image }}:${{ github.sha }}
+            ${{ steps.img.outputs.name }}:latest
+            ${{ steps.img.outputs.name }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
