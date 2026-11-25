@@ -12,3 +12,4 @@ mobile/.expo/
 *.log
 .DS_Store
 deploy/backups/
+dump.rdb

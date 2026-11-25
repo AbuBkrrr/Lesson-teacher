@@ -12,9 +12,9 @@ test('a parent can reset a forgotten password end to end', async ({ page }) => {
   await page.getByRole('button', { name: /create account/i }).click();
   await expect(page).toHaveURL(/\/parent/);
 
-  // Log out by clearing storage and heading back to the login screen.
-  await page.evaluate(() => localStorage.clear());
-  await page.goto('/#/login');
+  // Log out the way a user does.
+  await page.getByRole('button', { name: /log out/i }).click();
+  await expect(page).toHaveURL(/\/login/);
   await page.getByRole('link', { name: /forgot your password/i }).click();
   await expect(page).toHaveURL(/\/forgot-password/);
 

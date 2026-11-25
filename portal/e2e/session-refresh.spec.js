@@ -20,8 +20,8 @@ test('an expired access token is silently refreshed; a dead session returns to L
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Bookings' })).toBeVisible();
   await expect(page.getByText(/invalid or expired token/i)).toHaveCount(0);
-  const refreshed = await page.evaluate(() => localStorage.getItem('ltp_access_token_v1'));
-  expect(refreshed).not.toBe('expired.token.value');
+  // The refresh happens on the page's first API call; wait for it rather than racing it.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('ltp_access_token_v1'))).not.toBe('expired.token.value');
 
   // Now lose the refresh token too: the session is over.
   await page.evaluate(() => {
