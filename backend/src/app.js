@@ -33,6 +33,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const pushTokenRoutes = require('./routes/pushTokenRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const progressRoutes = require('./routes/progressRoutes');
+const marketingRoutes = require('./routes/marketingRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 function createApp() {
@@ -92,6 +93,7 @@ function createApp() {
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/account', accountRoutes);
   app.use('/api/progress', progressRoutes);
+  app.use('/api/marketing', marketingRoutes);
 
   app.use(notFound);
   // Reports uncaught route errors to Sentry (no-op when SENTRY_DSN isn't

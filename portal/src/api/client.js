@@ -133,7 +133,7 @@ async function authedFetch(path, init) {
 // last copy so lists, bookings, messages etc. still open; the Layout banner says
 // the data may be old. Writes are never cached (only chat has an outbox).
 const cacheKey = (path) => `cache:${getStoredUser()?.id || 'anon'}:${path}`;
-const NO_CACHE = ['/conversations/export', '/auth/', '/admin/audit-log', '/payments/'];
+const NO_CACHE = ['/conversations/export', '/auth/', '/admin/audit-log', '/payments/', '/marketing/'];
 
 async function request(path, opts = {}) {
   const { method = 'GET', body } = opts;
@@ -432,6 +432,31 @@ export const auditions = {
 };
 
 // ---- Curriculum ----
+export const marketing = {
+  // Public (pitch page)
+  publicConfig: () => request('/marketing/public-config'),
+  open: (payload) => request('/marketing/open', { method: 'POST', body: payload }),
+  lead: (payload) => request('/marketing/leads', { method: 'POST', body: payload }),
+  unsubscribe: (token) => request(`/marketing/unsubscribe/${encodeURIComponent(token)}`, { method: 'POST' }),
+  // Super admin
+  overview: (params = {}) => request(`/marketing/overview?${new URLSearchParams(params)}`),
+  opens: (params = {}) => request(`/marketing/opens?${new URLSearchParams(params)}`),
+  createLink: (payload) => request('/marketing/links', { method: 'POST', body: payload }),
+  updateLink: (id, payload) => request(`/marketing/links/${id}`, { method: 'PATCH', body: payload }),
+  leads: () => request('/marketing/leads'),
+  emailLeads: (payload) => request('/marketing/leads/email', { method: 'POST', body: payload }),
+  settings: () => request('/marketing/settings'),
+  saveSettings: (payload) => request('/marketing/settings', { method: 'PUT', body: payload }),
+  downloadLeadsCsv: async () => {
+    const res = await authedFetch('/marketing/leads.csv', { headers: {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not download leads');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = 'lesson-teacher-leads.csv'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+};
+
 export const progress = {
   me: () => request('/progress/me'),
   family: () => request('/progress/family'),

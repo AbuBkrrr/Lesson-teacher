@@ -22,6 +22,8 @@ import StudentAssignments from './pages/StudentAssignments';
 import StudentMaterials from './pages/StudentMaterials';
 import ChildBadges from './pages/ChildBadges';
 import Progress from './pages/Progress';
+import Pitch, { Unsubscribe } from './pages/Pitch';
+import SuperAdminMarketing from './pages/superadmin/Marketing';
 import LessonRoom from './pages/LessonRoom';
 
 import SuperAdminDashboard from './pages/superadmin/Dashboard';
@@ -79,6 +81,9 @@ function Routed() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/go" element={<Pitch />} />
+      <Route path="/go/:slug" element={<Pitch />} />
+      <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
       <Route path="/" element={<RoleRedirect />} />
 
       {/* Shared across multiple roles */}
@@ -109,6 +114,7 @@ function Routed() {
       <Route path="/superadmin/tutors" element={<RequireRole role="super_admin"><SuperAdminTutors /></RequireRole>} />
       <Route path="/superadmin/announcements" element={<RequireRole role="super_admin"><SuperAdminAnnouncements /></RequireRole>} />
       <Route path="/superadmin/settings" element={<RequireRole role="super_admin"><SuperAdminSettings /></RequireRole>} />
+      <Route path="/superadmin/marketing" element={<RequireRole role="super_admin"><SuperAdminMarketing /></RequireRole>} />
       <Route path="/superadmin/verifications" element={<RequireRole role="super_admin"><SuperAdminVerifications /></RequireRole>} />
 
       {/* School */}

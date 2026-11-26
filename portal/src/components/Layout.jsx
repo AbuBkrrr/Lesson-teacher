@@ -24,6 +24,7 @@ const NAV_BY_ROLE = {
     { to: '/superadmin/settings', label: 'Settings', icon: '\u2699\uFE0F' },
     { to: '/subscriptions', label: 'Subscription plans', icon: '\u{1F4B3}' },
     { to: '/superadmin/verifications', label: 'ID verifications', icon: '\u{1F6E1}\uFE0F' },
+    { to: '/superadmin/marketing', label: 'Marketing', icon: '\u{1F4E3}' },
     { to: '/superadmin/audit-log', label: 'Audit log', icon: '\u{1F4D2}' },
   ],
   school_admin: [

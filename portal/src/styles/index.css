@@ -650,3 +650,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lt-report dd { margin: 2px 0 0; white-space: pre-wrap; }
 .lt-progress-grid > .lt-card { margin: 0; }
 .lt-progress-grid + h2, .lt-progress-grid { margin-bottom: 12px; }
+
+/* ---------- Marketing ---------- */
+.lt-stat-sub { margin-top: 6px; font-size: 0.85rem; color: var(--lt-muted); line-height: 1.5; }
+.lt-mk-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 12px; align-items: end; }
+.lt-mk-form .lt-btn { margin-bottom: 16px; }
+.lt-table-wrap { overflow-x: auto; }
+.lt-device-no { display: inline-block; min-width: 2.2em; text-align: center; font-weight: 700; background: var(--lt-primary-tint-strong); color: var(--lt-primary-text); border-radius: 999px; padding: 1px 8px; }
+.lt-mk-kit-grid { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.lt-mk-breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.lt-mk-breakdowns > .lt-card { margin: 0; }
+.lt-barlist { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.lt-barlist li { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; gap: 8px; align-items: center; font-size: 0.85rem; }
+.lt-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-barlist-bar { height: 8px; background: var(--lt-border); border-radius: 999px; overflow: hidden; }
+.lt-barlist-bar > span { display: block; height: 100%; background: var(--lt-primary); }
+.lt-barlist-num { color: var(--lt-muted); font-variant-numeric: tabular-nums; }
+.lt-mk-mail { border-top: 1px solid var(--lt-border); margin-top: 16px; padding-top: 8px; }
+
+/* Public pitch page */
+.lt-pitch { min-height: 100vh; background: var(--lt-bg); color: var(--lt-ink); padding: 0 16px 96px; }
+.lt-pitch > * { max-width: 960px; margin-left: auto; margin-right: auto; }
+.lt-pitch-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; }
+.lt-pitch-brand { font-size: 1.2rem; color: var(--lt-primary-text); }
+.lt-pitch-hero { padding: 24px 0 8px; }
+.lt-pitch-hero h1 { font-size: clamp(1.8rem, 5vw, 2.8rem); line-height: 1.15; margin: 0 0 12px; }
+.lt-pitch-hero p { font-size: 1.05rem; max-width: 46em; }
+.lt-pitch-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+.lt-pitch-cta { font-size: 1.05rem; padding: 12px 22px; }
+.lt-pitch-note { background: var(--lt-warning-bg); color: var(--lt-warning-fg); padding: 8px 12px; border-radius: var(--lt-radius-sm); display: inline-block; }
+.lt-pitch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px auto; }
+.lt-pitch-grid > .lt-card { margin: 0; }
+.lt-pitch-grid h2, .lt-pitch-form h2 { font-size: 1.2rem; }
+.lt-pitch-grid ol { padding-left: 1.2em; line-height: 1.7; }
+.lt-pitch-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; margin: 4px 0 12px; }
+.lt-pitch-cookies { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 640px; margin: 0 auto; background: var(--lt-card); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: var(--lt-radius); padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
+.lt-pitch-cookies span { flex: 1 1 200px; }

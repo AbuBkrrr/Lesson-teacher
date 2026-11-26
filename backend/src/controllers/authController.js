@@ -149,6 +149,13 @@ async function signup(req, res) {
 
   const user = await txn();
 
+  // Credit the account to the marketing link / device it came from (best effort).
+  try {
+    await require('./marketingController').recordSignupAttribution(user, body.attribution);
+  } catch (err) {
+    console.error('[marketing] signup attribution failed', err.message);
+  }
+
   const accessToken = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
   await storeRefreshToken(user.id, refreshToken);
