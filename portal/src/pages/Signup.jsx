@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { getAttribution } from '../utils/tracking';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const HOME_BY_ROLE = {
@@ -19,7 +20,8 @@ const ROLES = [
 export default function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState('parent');
+  const [params] = useSearchParams();
+  const [role, setRole] = useState(['parent', 'tutor', 'adult_student', 'school_admin'].includes(params.get('role')) ? params.get('role') : 'parent');
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', school_name: '', date_of_birth: '' });
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -44,6 +46,8 @@ export default function Signup() {
       if (form.phone) payload.phone = form.phone;
       if (role === 'school_admin') payload.school_name = form.school_name;
       if (role === 'adult_student') payload.date_of_birth = form.date_of_birth;
+      const attribution = getAttribution();
+      if (attribution) payload.attribution = attribution;
 
       const user = await signup(payload);
       navigate(HOME_BY_ROLE[user.role] || '/');

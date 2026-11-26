@@ -12,6 +12,7 @@ const LINKS_BY_ROLE = {
     { label: 'Notifications', route: 'Notifications' },
     { label: 'Linked devices & backup', route: 'LinkedDevices' },
     { label: 'My children', route: 'MyChildren' },
+    { label: 'Progress reports', route: 'Progress' },
     { label: 'Monitor child–tutor chats', route: 'Monitor' },
     { label: 'Post a search', route: 'PostSearch' },
     { label: 'Saved tutors', route: 'SavedTutors' },

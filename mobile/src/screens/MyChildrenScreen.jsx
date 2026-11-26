@@ -3,11 +3,15 @@ import { View, Text, FlatList, TextInput, Pressable, StyleSheet } from 'react-na
 import { children, childInvites, gamification } from '../api/client';
 import { colors, spacing, typography, radius, commonStyles } from '../theme';
 import { confirmAction } from '../utils/confirm';
+import QrCodeView from '../components/QrCodeView';
 
 export default function MyChildrenScreen() {
   const [list, setList] = useState([]);
   const [fullName, setFullName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
+  const [age, setAge] = useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [learningNeeds, setLearningNeeds] = useState('');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -30,9 +34,15 @@ export default function MyChildrenScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      await children.create({ full_name: fullName.trim(), grade_level: gradeLevel.trim() || undefined });
+      await children.create({
+        full_name: fullName.trim(), grade_level: gradeLevel.trim() || undefined,
+        age: age ? Number(age) : undefined, school_name: schoolName.trim() || undefined, learning_needs: learningNeeds.trim() || undefined,
+      });
       setFullName('');
       setGradeLevel('');
+      setAge('');
+      setSchoolName('');
+      setLearningNeeds('');
       await load();
     } catch (e) {
       setError(e.message);
@@ -85,6 +95,8 @@ export default function MyChildrenScreen() {
                 <View style={styles.codeBox}>
                   <Text style={styles.codeText}>{inviteInfo.code}</Text>
                 </View>
+                <QrCodeView value={`lessonteacher://invite?code=${inviteInfo.code}`} size={170} label={`QR code for invite ${inviteInfo.code}`} />
+                <Text style={styles.expiryText}>Or let them scan this from the app&apos;s sign-in screen.</Text>
                 <Text style={styles.expiryText}>Expires {new Date(inviteInfo.expires_at).toLocaleString()}.</Text>
                 <Pressable
                   style={commonStyles.secondaryButton}
@@ -106,6 +118,20 @@ export default function MyChildrenScreen() {
                 <Text style={commonStyles.label}>Grade level</Text>
                 <TextInput style={commonStyles.input} value={gradeLevel} onChangeText={setGradeLevel} placeholder="e.g. Primary 4" />
               </View>
+              <View style={commonStyles.field}>
+                <Text style={commonStyles.label}>Age</Text>
+                <TextInput style={commonStyles.input} value={age} onChangeText={(v) => setAge(v.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={2} />
+              </View>
+              <View style={commonStyles.field}>
+                <Text style={commonStyles.label}>School (optional)</Text>
+                <TextInput style={commonStyles.input} value={schoolName} onChangeText={setSchoolName} maxLength={200} />
+              </View>
+              <View style={commonStyles.field}>
+                <Text style={commonStyles.label}>Learning needs (optional)</Text>
+                <TextInput style={[commonStyles.input, { minHeight: 60, textAlignVertical: 'top' }]} multiline value={learningNeeds} onChangeText={setLearningNeeds}
+                  maxLength={2000} placeholder="e.g. dyslexia, prefers visual examples" />
+                <Text style={styles.expiryText}>Shared with tutors you book so they can adapt lessons.</Text>
+              </View>
               <Pressable
                 style={[commonStyles.primaryButton, submitting && commonStyles.buttonDisabled]}
                 onPress={handleAdd}
@@ -123,8 +149,10 @@ export default function MyChildrenScreen() {
           <View style={commonStyles.card}>
             <View style={styles.childRow}>
               <Text style={styles.childName}>{c.full_name}</Text>
-              <Text style={styles.childMeta}>{c.grade_level || '—'}</Text>
+              <Text style={styles.childMeta}>{[c.age ? `Age ${c.age}` : null, c.grade_level].filter(Boolean).join(' · ') || '—'}</Text>
             </View>
+            {c.school_name ? <Text style={styles.childMeta}>{c.school_name}</Text> : null}
+            {c.learning_needs ? <Text style={styles.childMeta}>Needs: {c.learning_needs}</Text> : null}
             {streaks[c.id] && (
               <Text style={styles.childMeta}>🔥 {streaks[c.id].current_streak}-day streak · ⭐ {streaks[c.id].total_points} pts</Text>
             )}

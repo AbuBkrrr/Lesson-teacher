@@ -78,7 +78,13 @@ export default function FindTutor() {
     setError(null);
     setSuccess(null);
     try {
-      await auditions.create({ tutor_id: tutorId });
+      const form = bookingForm[tutorId] || {};
+      const type = form.auditionType || 'video';
+      if (type === 'challenge' && !form.brief?.trim()) { setError('Describe the challenge task for the tutor.'); return; }
+      await auditions.create({
+        tutor_id: tutorId, type, brief: form.brief?.trim() || undefined,
+        child_id: form.childId || undefined, skill_id: form.skillId || undefined,
+      });
       setSuccess('Audition requested — track it under Auditions.');
     } catch (e) {
       setError(e.message);
@@ -95,8 +101,14 @@ export default function FindTutor() {
     if (!form.scheduledAt) { setError('Pick a preferred date and time so the tutor knows when you want the lesson.'); return; }
     setBusyId(tutorId);
     try {
-      await bookings.create({ tutor_id: tutorId, child_id: form.childId || undefined, subject: form.subject || undefined, scheduled_at: localInputToIso(form.scheduledAt) || undefined });
-      setSuccess('Booking requested — track it under Bookings.');
+      const weeks = Number(form.weeks || 1);
+      const res = await bookings.create({
+        tutor_id: tutorId, child_id: form.childId || undefined, skill_id: form.skillId || undefined,
+        subject: form.subject || undefined, scheduled_at: localInputToIso(form.scheduledAt) || undefined,
+        duration_minutes: Number(form.duration || 60),
+        ...(weeks > 1 ? { recurrence: { weeks } } : {}),
+      });
+      setSuccess(res.bookings ? `${res.bookings.length} weekly lessons requested — track them under Bookings.` : 'Booking requested — track it under Bookings.');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -206,6 +218,15 @@ export default function FindTutor() {
                 {myChildren.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
+            {(t.skills || []).length > 0 && (
+              <div className="lt-field">
+                <label htmlFor={`findtutor-f8-${t.user_id}`}>Skill</label>
+                <select id={`findtutor-f8-${t.user_id}`} value={bookingForm[t.user_id]?.skillId || ''} onChange={(e) => updateForm(t.user_id, 'skillId', e.target.value)}>
+                  <option value="">— Select —</option>
+                  {t.skills.map((sk) => <option key={sk.skill_id} value={sk.skill_id}>{sk.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="lt-field">
               <label htmlFor={`findtutor-f6-${t.user_id}`}>Subject</label>
               <input id={`findtutor-f6-${t.user_id}`} value={bookingForm[t.user_id]?.subject || ''} onChange={(e) => updateForm(t.user_id, 'subject', e.target.value)} />
@@ -215,6 +236,37 @@ export default function FindTutor() {
               <input id={`findtutor-f7-${t.user_id}`} type="datetime-local" min={nowLocalInput()} value={bookingForm[t.user_id]?.scheduledAt || ''} onChange={(e) => updateForm(t.user_id, 'scheduledAt', e.target.value)} />
               <span className="lt-helper-text">Times are in your time zone ({browserTimeZone()}).</span>
             </div>
+            <div className="lt-row">
+              <div className="lt-field" style={{ flex: 1 }}>
+                <label htmlFor={`findtutor-f9-${t.user_id}`}>Lesson length</label>
+                <select id={`findtutor-f9-${t.user_id}`} value={bookingForm[t.user_id]?.duration || '60'} onChange={(e) => updateForm(t.user_id, 'duration', e.target.value)}>
+                  {[30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} min{t.hourly_rate ? ` · ${t.currency} ${Math.round(t.hourly_rate * m / 60)}` : ''}</option>)}
+                </select>
+              </div>
+              <div className="lt-field" style={{ flex: 1 }}>
+                <label htmlFor={`findtutor-f10-${t.user_id}`}>Repeat</label>
+                <select id={`findtutor-f10-${t.user_id}`} value={bookingForm[t.user_id]?.weeks || '1'} onChange={(e) => updateForm(t.user_id, 'weeks', e.target.value)}>
+                  <option value="1">One lesson</option>
+                  {[2, 4, 6, 8, 12].map((w) => <option key={w} value={w}>Weekly for {w} weeks</option>)}
+                </select>
+              </div>
+            </div>
+            <details className="lt-audition-options">
+              <summary>Audition options</summary>
+              <div className="lt-field">
+                <label htmlFor={`findtutor-f11-${t.user_id}`}>Audition type</label>
+                <select id={`findtutor-f11-${t.user_id}`} value={bookingForm[t.user_id]?.auditionType || 'video'} onChange={(e) => updateForm(t.user_id, 'auditionType', e.target.value)}>
+                  <option value="video">Video: a short recorded sample lesson</option>
+                  <option value="live">Live: a short session at an agreed time</option>
+                  <option value="portfolio">Portfolio: examples of past work</option>
+                  <option value="challenge">Challenge: a task you set</option>
+                </select>
+              </div>
+              <div className="lt-field">
+                <label htmlFor={`findtutor-f12-${t.user_id}`}>{bookingForm[t.user_id]?.auditionType === 'challenge' ? 'Challenge task (required)' : 'Note for the tutor (optional)'}</label>
+                <textarea id={`findtutor-f12-${t.user_id}`} rows={2} maxLength={2000} value={bookingForm[t.user_id]?.brief || ''} onChange={(e) => updateForm(t.user_id, 'brief', e.target.value)} />
+              </div>
+            </details>
 
             <div className="lt-row">
               <button className="lt-btn" disabled={busyId === t.user_id} onClick={() => requestBooking(t.user_id)}>Request booking</button>

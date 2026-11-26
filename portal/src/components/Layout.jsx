@@ -24,6 +24,7 @@ const NAV_BY_ROLE = {
     { to: '/superadmin/settings', label: 'Settings', icon: '\u2699\uFE0F' },
     { to: '/subscriptions', label: 'Subscription plans', icon: '\u{1F4B3}' },
     { to: '/superadmin/verifications', label: 'ID verifications', icon: '\u{1F6E1}\uFE0F' },
+    { to: '/superadmin/marketing', label: 'Marketing', icon: '\u{1F4E3}' },
     { to: '/superadmin/audit-log', label: 'Audit log', icon: '\u{1F4D2}' },
   ],
   school_admin: [
@@ -54,6 +55,7 @@ const NAV_BY_ROLE = {
     { to: '/parent/browse', label: 'Browse all', icon: '\u{1F4CB}' },
     { to: '/parent/saved', label: 'Saved tutors', icon: '★' },
     { to: '/parent/children', label: 'My children', icon: '\u{1F9D2}' },
+    { to: '/parent/progress', label: 'Progress', icon: '\u{1F4C8}' },
     { to: '/parent/bookings', label: 'Bookings', icon: '\u{1F4C5}' },
     { to: '/parent/auditions', label: 'Auditions', icon: '\u{1F3AC}' },
     { to: '/parent/requests', label: 'Post a search', icon: '\u{1F4E3}' },
@@ -82,6 +84,7 @@ const NAV_BY_ROLE = {
     { to: '/assignments', label: 'Assignments', icon: '\u{1F4DD}' },
     { to: '/materials', label: 'Materials', icon: '\u{1F4C1}' },
     { to: '/curriculum', label: 'Curriculum', icon: '\u{1F4DA}' },
+    { to: '/my-progress', label: 'My progress', icon: '\u{1F4C8}' },
     { to: '/my-badges', label: 'Badges & rank', icon: '\u{1F3C5}' },
     { to: '/messages', label: 'Messages', icon: '\u{1F4AC}' },
   ],

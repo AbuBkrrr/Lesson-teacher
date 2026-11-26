@@ -2,7 +2,7 @@
 import fs from 'fs';
 import { defineConfig, devices } from '@playwright/test';
 
-const LOCAL_CHROMIUM = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const LOCAL_CHROMIUM = process.env.E2E_CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 export default defineConfig({
   testDir: './e2e',

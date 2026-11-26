@@ -1,0 +1,109 @@
+# Lesson Teacher on one VPS (2 vCPU / 2-4 GB RAM recommended).
+# Usage: see DEPLOY.md. Run from this folder: docker compose up -d
+name: lesson-teacher
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lessonteacher
+      POSTGRES_USER: lessonteacher
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Tuned for a small server; raise shared_buffers on 4 GB+.
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60", "-c", "effective_cache_size=768MB"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lessonteacher -d lessonteacher"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy: { resources: { limits: { memory: 768M } } }
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy: { resources: { limits: { memory: 128M } } }
+    logging: *logging
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgres://lessonteacher:${POSTGRES_PASSWORD}@db:5432/lessonteacher
+      REDIS_URL: redis://redis:6379
+      PORTAL_URL: https://${DOMAIN:?set DOMAIN in .env}
+      APP_BASE_URL: https://${DOMAIN}
+      BASE_URL: https://${DOMAIN}
+      CORS_ORIGINS: https://${DOMAIN}
+      TRUST_PROXY: "1"
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${PUBLIC_IP:?set PUBLIC_IP (the server's public IPv4) in .env}
+      MEDIASOUP_MIN_PORT: "40000"
+      MEDIASOUP_MAX_PORT: "40100"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Video lesson media goes straight to the API container, not through nginx.
+    ports:
+      - "40000-40100:40000-40100/udp"
+      - "40000-40100:40000-40100/tcp"
+    volumes: [uploads:/app/uploads]
+    deploy: { resources: { limits: { memory: 1G } } }
+    logging: *logging
+
+  web:
+    build:
+      context: ../portal
+      args:
+        VITE_API_BASE: https://${DOMAIN}/api
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+    logging: *logging
+
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - certbot-www:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    depends_on: [api, web]
+    # Reload every 12h so renewed certificates are picked up.
+    command: ["/bin/sh", "-c", "/docker-entrypoint.sh nginx -g 'daemon off;' & while :; do sleep 12h; nginx -s reload; done"]
+    deploy: { resources: { limits: { memory: 64M } } }
+    logging: *logging
+
+  certbot:
+    image: certbot/certbot:v3.1.0
+    restart: unless-stopped
+    volumes:
+      - certbot-www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    logging: *logging
+
+volumes:
+  db-data:
+  redis-data:
+  uploads:
+  certbot-www:
+  letsencrypt:

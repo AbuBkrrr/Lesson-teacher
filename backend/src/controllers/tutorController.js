@@ -94,7 +94,7 @@ async function list(req, res) {
     const placeholders = rows.map(() => '?').join(',');
     const skillRows = await db
       .prepare(
-        `SELECT ts.tutor_id, s.name, s.category, s.icon, ts.proficiency
+        `SELECT ts.tutor_id, s.id AS skill_id, s.name, s.category, s.icon, ts.proficiency, ts.evidence_url, ts.evidence_urls
          FROM tutor_skills ts JOIN skills s ON s.id = ts.skill_id
          WHERE ts.tutor_id IN (${placeholders}) AND ts.deleted_at IS NULL AND s.deleted_at IS NULL`
       )

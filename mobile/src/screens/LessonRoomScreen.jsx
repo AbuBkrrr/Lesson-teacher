@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import Whiteboard from '../components/Whiteboard';
 import { Device } from 'mediasoup-client';
 import { mediaDevices, registerGlobals, RTCView, MediaStream as RNMediaStream } from 'react-native-webrtc';
 import { bookings } from '../api/client';
@@ -42,31 +43,53 @@ export default function LessonRoomScreen({ route, navigation }) {
   const sendTransportRef = useRef(null);
   const recvTransportRef = useRef(null);
   const socketRef = useRef(null);
-  const remoteStreamsRef = useRef({}); // peerId -> MediaStream (RN's, not the browser's)
+  // tileKey -> MediaStream (react-native-webrtc's, not the DOM one). A screen
+  // share from the desktop app gets its own tile: `${peerId}:screen`.
+  const remoteStreamsRef = useRef({});
+  const consumersRef = useRef({}); // consumerId -> { key, track, role, peerId, screen }
+  const [panel, setPanel] = useState(null); // null | 'chat' | 'board'
+  const [chat, setChat] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [draft, setDraft] = useState('');
+  const [strokes, setStrokes] = useState([]);
+  const [myRole, setMyRole] = useState(null);
+  const panelRef = useRef(null);
+  useEffect(() => { panelRef.current = panel; }, [panel]);
 
-  const attachRemoteTrack = useCallback((peerId, role, track) => {
-    if (!remoteStreamsRef.current[peerId]) {
-      // react-native-webrtc's MediaStream, not the DOM one — same
-      // constructor name, different underlying native implementation.
-      remoteStreamsRef.current[peerId] = new RNMediaStream();
-    }
-    remoteStreamsRef.current[peerId].addTrack(track);
-    setRemotePeers((prev) => ({
-      ...prev,
-      [peerId]: { role, streamURL: remoteStreamsRef.current[peerId].toURL() },
-    }));
-  }, []);
-
-  const removeRemotePeer = useCallback((peerId) => {
-    delete remoteStreamsRef.current[peerId];
+  const publishTile = useCallback((key, meta) => {
+    const stream = remoteStreamsRef.current[key];
     setRemotePeers((prev) => {
       const next = { ...prev };
-      delete next[peerId];
+      if (stream && stream.getTracks().length) next[key] = { ...meta, streamURL: stream.toURL() };
+      else { delete next[key]; delete remoteStreamsRef.current[key]; }
       return next;
     });
   }, []);
 
-  const consumeProducer = useCallback(async (socket, { peerId, role, producerId }) => {
+  const attachRemoteTrack = useCallback((consumerId, peerId, role, track, source) => {
+    const screen = source === 'screen';
+    const key = screen ? `${peerId}:screen` : peerId;
+    if (!remoteStreamsRef.current[key]) remoteStreamsRef.current[key] = new RNMediaStream();
+    remoteStreamsRef.current[key].addTrack(track);
+    consumersRef.current[consumerId] = { key, track, role, peerId, screen };
+    publishTile(key, { role, peerId, screen });
+  }, [publishTile]);
+
+  const dropConsumer = useCallback((consumerId) => {
+    const c = consumersRef.current[consumerId];
+    if (!c) return;
+    delete consumersRef.current[consumerId];
+    remoteStreamsRef.current[c.key]?.removeTrack(c.track);
+    publishTile(c.key, { role: c.role, peerId: c.peerId, screen: c.screen });
+  }, [publishTile]);
+
+  const removeRemotePeer = useCallback((peerId) => {
+    for (const [id, c] of Object.entries(consumersRef.current)) if (c.peerId === peerId) delete consumersRef.current[id];
+    for (const key of Object.keys(remoteStreamsRef.current)) if (key === peerId || key.startsWith(`${peerId}:`)) delete remoteStreamsRef.current[key];
+    setRemotePeers((prev) => Object.fromEntries(Object.entries(prev).filter(([, t]) => t.peerId !== peerId)));
+  }, []);
+
+  const consumeProducer = useCallback(async (socket, { peerId, role, producerId, source }) => {
     const recvTransport = recvTransportRef.current;
     const { params } = await call(socket, 'lesson:consume', {
       bookingId, transportId: recvTransport.id, producerId, rtpCapabilities: deviceRef.current.rtpCapabilities,
@@ -74,7 +97,7 @@ export default function LessonRoomScreen({ route, navigation }) {
     const consumer = await recvTransport.consume({
       id: params.id, producerId: params.producerId, kind: params.kind, rtpParameters: params.rtpParameters,
     });
-    attachRemoteTrack(peerId, role, consumer.track);
+    attachRemoteTrack(consumer.id, peerId, role, consumer.track, source);
     await call(socket, 'lesson:resume_consumer', { bookingId, consumerId: consumer.id });
   }, [bookingId, attachRemoteTrack]);
 
@@ -98,6 +121,9 @@ export default function LessonRoomScreen({ route, navigation }) {
         setLocalStreamURL(stream.toURL());
 
         const joinResult = await call(socket, 'lesson:join', bookingId);
+        setMyRole(joinResult.role);
+        setChat(joinResult.chat || []);
+        setStrokes(joinResult.whiteboard || []);
         if (cancelled) return;
 
         const device = new Device();
@@ -131,6 +157,14 @@ export default function LessonRoomScreen({ route, navigation }) {
 
         socket.on('lesson:new_producer', (p) => consumeProducer(socket, p));
         socket.on('lesson:peer_left', ({ peerId }) => removeRemotePeer(peerId));
+        socket.on('lesson:consumer_closed', ({ consumerId }) => dropConsumer(consumerId));
+        socket.on('lesson:chat', (m) => {
+          setChat((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+          if (panelRef.current !== 'chat') setUnread((n) => n + 1);
+        });
+        socket.on('lesson:wb_stroke', (st) => setStrokes((prev) => [...prev, st]));
+        socket.on('lesson:wb_remove', ({ id }) => setStrokes((prev) => prev.filter((x) => x.id !== id)));
+        socket.on('lesson:wb_cleared', () => setStrokes([]));
         socket.on('lesson:replaced', () => {
           setError('This lesson was opened on another device.');
           setStatus('ended');
@@ -158,6 +192,7 @@ export default function LessonRoomScreen({ route, navigation }) {
         socket.emit('lesson:leave', bookingId, () => {});
         socket.off('lesson:new_producer');
         socket.off('lesson:peer_left');
+        for (const ev of ['lesson:consumer_closed', 'lesson:chat', 'lesson:wb_stroke', 'lesson:wb_remove', 'lesson:wb_cleared']) socket.off(ev);
         socket.off('lesson:replaced');
       }
     };
@@ -182,7 +217,27 @@ export default function LessonRoomScreen({ route, navigation }) {
     navigation.goBack();
   }
 
-  const otherPartyName = booking ? (user?.role === 'tutor' ? booking.parent_name : booking.tutor_name) : null;
+  const otherPartyName = booking ? (user?.role === 'tutor' ? (booking.child_name || booking.parent_name) : booking.tutor_name) : null;
+
+  function sendChat() {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft('');
+    call(socketRef.current, 'lesson:chat', { bookingId, text })
+      .then(({ message }) => setChat((prev) => (prev.some((x) => x.id === message.id) ? prev : [...prev, message])))
+      .catch((e) => { setDraft(text); setError(e.message); });
+  }
+  const sendStroke = useCallback((st) => {
+    setStrokes((prev) => [...prev, st]);
+    call(socketRef.current, 'lesson:wb_stroke', { bookingId, stroke: st }).catch((e) => {
+      setStrokes((prev) => prev.filter((x) => x.id !== st.id));
+      setError(e.message);
+    });
+  }, [bookingId]);
+  function togglePanel(p) {
+    setPanel((cur) => (cur === p ? null : p));
+    if (p === 'chat') setUnread(0);
+  }
   const remoteList = Object.entries(remotePeers);
 
   return (
@@ -207,12 +262,42 @@ export default function LessonRoomScreen({ route, navigation }) {
               <Text style={styles.mutedText}>Waiting for {otherPartyName || 'the other participant'} to join…</Text>
             </View>
           )}
-          {remoteList.map(([peerId, { role, streamURL }]) => (
-            <View key={peerId} style={styles.remoteTile}>
-              <RTCView streamURL={streamURL} style={styles.video} objectFit="cover" />
-              <Text style={styles.tileLabel}>{role === 'tutor' ? 'Tutor' : 'Parent'}</Text>
+          {remoteList.map(([key, { role, streamURL, screen }]) => (
+            <View key={key} style={styles.remoteTile}>
+              <RTCView streamURL={streamURL} style={styles.video} objectFit={screen ? 'contain' : 'cover'} />
+              <Text style={styles.tileLabel}>{{ tutor: 'Tutor', parent: 'Parent', student: 'Student' }[role] || 'Participant'}{screen ? ' · screen' : ''}</Text>
             </View>
           ))}
+
+          {panel && (
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.panel}>
+              {panel === 'chat' ? (
+                <>
+                  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.sm }}>
+                    {chat.length === 0 && <Text style={{ color: colors.muted }}>Messages here are saved with the lesson, and the parent can read them.</Text>}
+                    {chat.map((m) => (
+                      <View key={m.id} style={[styles.bubble, m.sender_id === user?.id && styles.bubbleMine]}>
+                        <Text style={styles.bubbleWho}>{m.sender_id === user?.id ? 'You' : (m.sender_name || m.sender_role)}</Text>
+                        <Text onPress={() => { const u = /(https?:\/\/\S+)/.exec(m.body)?.[1]; if (u) Linking.openURL(u); }}>{m.body}</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.chatRow}>
+                    <TextInput style={styles.chatInput} value={draft} onChangeText={setDraft} placeholder="Message or link" maxLength={1000}
+                      onSubmitEditing={sendChat} returnKeyType="send" accessibilityLabel="Chat message" />
+                    <Pressable style={[styles.controlBtn, { backgroundColor: colors.primary }]} onPress={sendChat}><Text style={styles.controlBtnText}>Send</Text></Pressable>
+                  </View>
+                </>
+              ) : (
+                <ScrollView contentContainerStyle={{ padding: spacing.sm }} scrollEnabled={false}>
+                  <Whiteboard strokes={strokes} onStroke={sendStroke}
+                    onUndo={() => call(socketRef.current, 'lesson:wb_undo', { bookingId }).catch((e) => setError(e.message))}
+                    onClear={() => call(socketRef.current, 'lesson:wb_clear', { bookingId }).catch((e) => setError(e.message))}
+                    canClear={myRole === 'tutor'} />
+                </ScrollView>
+              )}
+            </KeyboardAvoidingView>
+          )}
 
           {localStreamURL && (
             <View style={styles.selfView}>
@@ -227,6 +312,12 @@ export default function LessonRoomScreen({ route, navigation }) {
             </Pressable>
             <Pressable style={[styles.controlBtn, !camOn && styles.controlBtnActive]} onPress={toggleCam}>
               <Text style={styles.controlBtnText}>{camOn ? 'Stop video' : 'Start video'}</Text>
+            </Pressable>
+            <Pressable style={[styles.controlBtn, panel === 'chat' && styles.controlBtnOn]} onPress={() => togglePanel('chat')} accessibilityLabel="Chat">
+              <Text style={styles.controlBtnText}>Chat{unread ? ` (${unread})` : ''}</Text>
+            </Pressable>
+            <Pressable style={[styles.controlBtn, panel === 'board' && styles.controlBtnOn]} onPress={() => togglePanel('board')} accessibilityLabel="Whiteboard">
+              <Text style={styles.controlBtnText}>Board</Text>
             </Pressable>
             <Pressable style={[styles.controlBtn, styles.leaveBtn]} onPress={leaveCall}>
               <Text style={styles.controlBtnText}>Leave</Text>
@@ -274,6 +365,13 @@ const styles = StyleSheet.create({
   },
   controlBtn: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: 999, backgroundColor: '#333' },
   controlBtnActive: { backgroundColor: colors.dangerFg },
+  controlBtnOn: { backgroundColor: colors.primary },
+  panel: { position: 'absolute', left: 8, right: 8, top: 8, bottom: 90, backgroundColor: '#fff', borderRadius: radius.md, overflow: 'hidden', zIndex: 5 },
+  bubble: { backgroundColor: '#f0f2f5', borderRadius: 8, padding: 8, marginBottom: 6, maxWidth: '90%', alignSelf: 'flex-start' },
+  bubbleMine: { backgroundColor: '#e0d7ff', alignSelf: 'flex-end' },
+  bubbleWho: { fontSize: 11, fontWeight: '700', color: '#5b6270' },
+  chatRow: { flexDirection: 'row', gap: 6, padding: 8, borderTopWidth: 1, borderTopColor: '#e5e7eb', alignItems: 'center' },
+  chatInput: { flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   leaveBtn: { backgroundColor: colors.dangerFg },
   controlBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
 });

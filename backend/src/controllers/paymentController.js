@@ -55,8 +55,10 @@ async function initialize(req, res) {
   const tutorProfile = await db.prepare('SELECT * FROM tutor_profiles WHERE user_id = ?').get(booking.tutor_id);
   const parent = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
-  const baseAmount = tutorProfile?.hourly_rate;
-  const currency = tutorProfile?.currency || 'NGN';
+  // Bookings made since lesson pricing was stored carry their own price
+  // (rate x duration, fixed at booking time); older rows fall back to the rate.
+  const baseAmount = booking.price !== null && booking.price !== undefined ? Number(booking.price) : tutorProfile?.hourly_rate;
+  const currency = booking.currency || tutorProfile?.currency || 'NGN';
   if (!baseAmount) return res.status(400).json({ error: "This tutor hasn't set an hourly rate yet" });
 
   // Family-plan discount: a parent with 2+ active children gets a

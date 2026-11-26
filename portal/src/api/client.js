@@ -133,7 +133,7 @@ async function authedFetch(path, init) {
 // last copy so lists, bookings, messages etc. still open; the Layout banner says
 // the data may be old. Writes are never cached (only chat has an outbox).
 const cacheKey = (path) => `cache:${getStoredUser()?.id || 'anon'}:${path}`;
-const NO_CACHE = ['/conversations/export', '/auth/', '/admin/audit-log', '/payments/'];
+const NO_CACHE = ['/conversations/export', '/auth/', '/admin/audit-log', '/payments/', '/marketing/'];
 
 async function request(path, opts = {}) {
   const { method = 'GET', body } = opts;
@@ -338,7 +338,10 @@ export const skills = {
   create: (payload) => request('/skills', { method: 'POST', body: payload }),
   remove: (id) => request(`/skills/${id}`, { method: 'DELETE' }),
   mine: () => request('/skills/mine'),
-  addMine: (skill_id, proficiency, evidence_url) => request('/skills/mine', { method: 'POST', body: { skill_id, proficiency, evidence_url } }),
+  addMine: (skill_id, proficiency, evidence_urls) => request('/skills/mine', {
+    method: 'POST',
+    body: { skill_id, proficiency, evidence_urls: Array.isArray(evidence_urls) ? evidence_urls : (evidence_urls ? [evidence_urls] : []) },
+  }),
   removeMine: (skillId) => request(`/skills/mine/${skillId}`, { method: 'DELETE' }),
 };
 
@@ -375,7 +378,10 @@ export const bookings = {
   create: (payload) => request('/bookings', { method: 'POST', body: payload }),
   mine: () => request('/bookings/mine'),
   getOne: (id) => request(`/bookings/${id}`),
-  updateStatus: (id, status) => request(`/bookings/${id}/status`, { method: 'PATCH', body: { status } }),
+  updateStatus: (id, status, opts = {}) => request(`/bookings/${id}/status`, { method: 'PATCH', body: { status, ...opts } }),
+  report: (id) => request(`/bookings/${id}/report`),
+  saveReport: (id, payload) => request(`/bookings/${id}/report`, { method: 'PUT', body: payload }),
+  callChat: (id) => request(`/bookings/${id}/call-chat`),
   reschedule: (id, scheduled_at) => request(`/bookings/${id}/schedule`, { method: 'PATCH', body: { scheduled_at } }),
   downloadIcs: async (id) => {
     const res = await authedFetch(`/bookings/${id}/ics`, { headers: {} });
@@ -421,10 +427,42 @@ export const settings = {
 export const auditions = {
   create: (payload) => request('/auditions', { method: 'POST', body: payload }),
   mine: () => request('/auditions/mine'),
-  updateStatus: (id, status, video_url) => request(`/auditions/${id}/status`, { method: 'PATCH', body: { status, video_url } }),
+  updateStatus: (id, status, video_url, extra = {}) => request(`/auditions/${id}/status`, { method: 'PATCH', body: { status, video_url, ...extra } }),
+  review: (id, payload) => request(`/auditions/${id}/review`, { method: 'PATCH', body: payload }),
 };
 
 // ---- Curriculum ----
+export const marketing = {
+  // Public (pitch page)
+  publicConfig: () => request('/marketing/public-config'),
+  open: (payload) => request('/marketing/open', { method: 'POST', body: payload }),
+  lead: (payload) => request('/marketing/leads', { method: 'POST', body: payload }),
+  unsubscribe: (token) => request(`/marketing/unsubscribe/${encodeURIComponent(token)}`, { method: 'POST' }),
+  // Super admin
+  overview: (params = {}) => request(`/marketing/overview?${new URLSearchParams(params)}`),
+  opens: (params = {}) => request(`/marketing/opens?${new URLSearchParams(params)}`),
+  createLink: (payload) => request('/marketing/links', { method: 'POST', body: payload }),
+  updateLink: (id, payload) => request(`/marketing/links/${id}`, { method: 'PATCH', body: payload }),
+  leads: () => request('/marketing/leads'),
+  emailLeads: (payload) => request('/marketing/leads/email', { method: 'POST', body: payload }),
+  settings: () => request('/marketing/settings'),
+  saveSettings: (payload) => request('/marketing/settings', { method: 'PUT', body: payload }),
+  downloadLeadsCsv: async () => {
+    const res = await authedFetch('/marketing/leads.csv', { headers: {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not download leads');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = 'lesson-teacher-leads.csv'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+};
+
+export const progress = {
+  me: () => request('/progress/me'),
+  family: () => request('/progress/family'),
+  child: (childId) => request(`/progress/children/${childId}`),
+};
+
 export const curriculum = {
   list: (params = {}) => {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v))).toString();

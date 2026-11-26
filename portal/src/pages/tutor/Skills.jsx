@@ -9,6 +9,7 @@ export default function TutorSkills() {
   const [mySkills, setMySkills] = useState([]);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [evidence, setEvidence] = useState({});
   const [proficiency, setProficiency] = useState({});
 
   const load = () => {
@@ -18,12 +19,14 @@ export default function TutorSkills() {
   useEffect(load, []);
 
   const attachedIds = new Set(mySkills.map((s) => s.skill_id));
+  const mineById = Object.fromEntries(mySkills.map((s) => [s.skill_id, s]));
 
   async function attach(skillId) {
     setBusyId(skillId);
     setError(null);
     try {
-      await skills.addMine(skillId, proficiency[skillId] || 'intermediate');
+      const links = (evidence[skillId] || '').split(/[\s,]+/).map((l) => l.trim()).filter(Boolean);
+      await skills.addMine(skillId, proficiency[skillId] || 'intermediate', links);
       load();
     } catch (e) {
       setError(e.message);
@@ -73,8 +76,24 @@ export default function TutorSkills() {
                       >
                         <option value="beginner">Beginner</option>
                         <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
                         <option value="expert">Expert</option>
                       </select>
+                    )}
+                    {!attached && (
+                      <input
+                        aria-label={`Evidence links for ${s.name}`}
+                        placeholder="Certificate / portfolio links (optional)"
+                        value={evidence[s.id] || ''}
+                        onChange={(e) => setEvidence((v) => ({ ...v, [s.id]: e.target.value }))}
+                        style={{ padding: 6, borderRadius: 8, border: '1px solid var(--lt-border)', width: 240 }}
+                      />
+                    )}
+                    {attached && (
+                      <span className="lt-helper-text">
+                        {mineById[s.id]?.proficiency}
+                        {(mineById[s.id]?.evidence_urls || []).map((u, i) => <React.Fragment key={u}> · <a href={u} target="_blank" rel="noreferrer noopener">evidence {i + 1}</a></React.Fragment>)}
+                      </span>
                     )}
                     <button
                       className={`lt-btn lt-btn--sm ${attached ? 'lt-btn--danger' : ''}`}

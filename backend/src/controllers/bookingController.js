@@ -3,7 +3,8 @@ const { getPaging, pageMeta } = require('../utils/paging');
 const { uuidv4 } = require('../utils/referral');
 const { notifyUser, templates } = require('../services/notifications');
 const { recordActivity } = require('../services/gamification');
-const { normalizeScheduledAt, withinAvailability, findConflict, LESSON_MINUTES } = require('../utils/schedule');
+const { normalizeScheduledAt, withinAvailability, findConflict, LESSON_MINUTES, DURATIONS } = require('../utils/schedule');
+const { recomputeProgress } = require('../services/progress');
 
 function now() {
   return new Date().toISOString();
@@ -16,13 +17,24 @@ const VALID_TRANSITIONS = {
   super_admin: { pending: ['confirmed', 'cancelled'], confirmed: ['completed', 'cancelled'] },
 };
 
-/** POST /api/bookings  (parent or adult_student — an adult student books for themselves, so child_id is omitted) */
+const MAX_SERIES_WEEKS = 12;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * POST /api/bookings  (parent or adult_student — an adult student books for themselves, so child_id is omitted)
+ * body: { tutor_id, child_id?, skill_id?, subject?, scheduled_at?, duration_minutes?, notes?,
+ *         recurrence?: { weeks: 2..12 } }
+ * With `recurrence`, one booking per week is created at the same time (a series sharing
+ * series_id). Every occurrence is checked against availability and clashes first, so
+ * either the whole series is created or none of it.
+ */
 async function create(req, res) {
   if (req.user.role !== 'parent' && req.user.role !== 'adult_student') {
     return res.status(403).json({ error: 'Only parents or adult students can request a booking' });
   }
 
-  const { tutor_id, child_id, subject, scheduled_at } = req.body || {};
+  const { tutor_id, child_id, skill_id, notes, recurrence } = req.body || {};
+  let { subject } = req.body || {};
   if (!tutor_id) return res.status(400).json({ error: 'tutor_id is required' });
 
   const tutor = await db.prepare("SELECT id FROM users WHERE id = ? AND role = 'tutor' AND deleted_at IS NULL").get(tutor_id);
@@ -33,35 +45,82 @@ async function create(req, res) {
   }
 
   if (child_id) {
-    const child = await db.prepare('SELECT id FROM children WHERE id = ? AND parent_id = ?').get(child_id, req.user.id);
+    const child = await db.prepare('SELECT id FROM children WHERE id = ? AND parent_id = ? AND deleted_at IS NULL').get(child_id, req.user.id);
     if (!child) return res.status(400).json({ error: 'child_id does not match one of your children' });
   }
 
-  const sched = normalizeScheduledAt(scheduled_at);
-  if (sched.error) return res.status(400).json({ error: sched.error });
-  if (sched.iso) {
-    if (!(await withinAvailability(tutor_id, sched.iso))) {
-      return res.status(409).json({ error: "That time is outside the tutor's published availability — pick a slot they offer." });
-    }
-    if (await findConflict(tutor_id, sched.iso)) {
-      return res.status(409).json({ error: 'The tutor already has a lesson at that time — pick another slot.' });
+  if (skill_id) {
+    const skill = await db.prepare('SELECT id, name FROM skills WHERE id = ? AND deleted_at IS NULL').get(skill_id);
+    if (!skill) return res.status(400).json({ error: 'skill_id does not match a skill in the catalog' });
+    if (!subject) subject = skill.name;
+  }
+
+  const duration = req.body?.duration_minutes === undefined || req.body?.duration_minutes === null
+    ? LESSON_MINUTES
+    : Number(req.body.duration_minutes);
+  if (!DURATIONS.includes(duration)) {
+    return res.status(400).json({ error: `duration_minutes must be one of: ${DURATIONS.join(', ')}` });
+  }
+
+  let weeks = 1;
+  if (recurrence !== undefined && recurrence !== null) {
+    weeks = Number(recurrence.weeks);
+    if (!Number.isInteger(weeks) || weeks < 2 || weeks > MAX_SERIES_WEEKS) {
+      return res.status(400).json({ error: `recurrence.weeks must be a whole number from 2 to ${MAX_SERIES_WEEKS}` });
     }
   }
 
-  const id = uuidv4();
+  const sched = normalizeScheduledAt(req.body?.scheduled_at);
+  if (sched.error) return res.status(400).json({ error: sched.error });
+  if (weeks > 1 && !sched.iso) return res.status(400).json({ error: 'A recurring booking needs a scheduled_at for the first lesson' });
+
+  const times = [];
+  for (let i = 0; i < weeks; i++) {
+    times.push(sched.iso ? new Date(new Date(sched.iso).getTime() + i * WEEK_MS).toISOString() : null);
+  }
+  for (const [i, iso] of times.entries()) {
+    if (!iso) continue;
+    const label = weeks > 1 ? ` (week ${i + 1}, ${iso.slice(0, 10)})` : '';
+    if (!(await withinAvailability(tutor_id, iso, duration))) {
+      return res.status(409).json({ error: `That time is outside the tutor's published availability${label} — pick a slot they offer.` });
+    }
+    if (await findConflict(tutor_id, iso, null, duration)) {
+      return res.status(409).json({ error: `The tutor already has a lesson at that time${label} — pick another slot.` });
+    }
+  }
+
+  // The price is fixed when the booking is made, so a later rate change
+  // doesn't alter what the parent agreed to pay.
+  const profile = await db.prepare('SELECT hourly_rate, currency FROM tutor_profiles WHERE user_id = ?').get(tutor_id);
+  const price = profile?.hourly_rate ? Math.round(Number(profile.hourly_rate) * (duration / 60) * 100) / 100 : null;
+  const currency = profile?.currency || 'NGN';
+
+  const seriesId = weeks > 1 ? uuidv4() : null;
   const ts = now();
-  await db.prepare(
-    `INSERT INTO bookings (id, parent_id, tutor_id, child_id, subject, scheduled_at, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-  ).run(id, req.user.id, tutor_id, child_id || null, subject || null, sched.iso, ts, ts);
+  const ids = [];
+  await db.transaction(async () => {
+    for (const iso of times) {
+      const id = uuidv4();
+      ids.push(id);
+      await db.prepare(
+        `INSERT INTO bookings (id, parent_id, tutor_id, child_id, skill_id, subject, scheduled_at, duration_minutes,
+                               price, currency, series_id, notes, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+      ).run(id, req.user.id, tutor_id, child_id || null, skill_id || null, subject || null, iso, duration,
+        price, currency, seriesId, notes || null, ts, ts);
+    }
+  })();
 
   const [tutorUser, parentUser] = await Promise.all([
     db.prepare('SELECT * FROM users WHERE id = ?').get(tutor_id),
     db.prepare('SELECT full_name FROM users WHERE id = ?').get(req.user.id),
   ]);
-  await notifyUser(tutorUser, templates.bookingRequested(parentUser.full_name, subject));
+  await notifyUser(tutorUser, templates.bookingRequested(parentUser.full_name, weeks > 1 ? `${subject || 'lessons'} (${weeks} weekly lessons)` : subject));
 
-  res.status(201).json({ booking: await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id) });
+  const booking = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(ids[0]);
+  if (weeks === 1) return res.status(201).json({ booking });
+  const series = await db.prepare('SELECT * FROM bookings WHERE series_id = ? ORDER BY scheduled_at').all(seriesId);
+  res.status(201).json({ booking, series_id: seriesId, bookings: series });
 }
 
 /** GET /api/bookings/mine */
@@ -112,66 +171,106 @@ async function listMine(req, res) {
   res.json({ bookings: rows, ...(paging ? pageMeta(paging, total) : {}) });
 }
 
-/** PATCH /api/bookings/:id/status  body: { status } */
-async function updateStatus(req, res) {
-  const { id } = req.params;
-  const { status } = req.body || {};
-  const booking = await db.prepare('SELECT * FROM bookings WHERE id = ? AND deleted_at IS NULL').get(id);
-  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+function canActOn(user, booking) {
+  return ((user.role === 'parent' || user.role === 'adult_student') && booking.parent_id === user.id) ||
+    (user.role === 'tutor' && booking.tutor_id === user.id) ||
+    user.role === 'super_admin';
+}
 
-  const isOwner =
-    ((req.user.role === 'parent' || req.user.role === 'adult_student') && booking.parent_id === req.user.id) ||
-    (req.user.role === 'tutor' && booking.tutor_id === req.user.id) ||
-    req.user.role === 'super_admin';
-  if (!isOwner) return res.status(403).json({ error: 'Not your booking' });
-
-  const allowedNext = VALID_TRANSITIONS[req.user.role]?.[booking.status] || [];
+/** Validates one transition. Returns null when allowed, otherwise { code, error }. */
+async function checkTransition(user, booking, status) {
+  const allowedNext = VALID_TRANSITIONS[user.role]?.[booking.status] || [];
   if (!allowedNext.includes(status)) {
-    return res.status(400).json({ error: `Cannot move booking from ${booking.status} to ${status}` });
+    return { code: 400, error: `Cannot move booking from ${booking.status} to ${status}` };
   }
-
   if (status === 'completed') {
     const paid = await db.prepare("SELECT id FROM payments WHERE booking_id = ? AND status = 'successful'").get(booking.id);
-    if (!paid) return res.status(400).json({ error: 'This booking must be paid for before it can be marked completed' });
+    if (!paid) return { code: 400, error: 'This booking must be paid for before it can be marked completed' };
   }
-
-  if (status === 'confirmed' && booking.scheduled_at && (await findConflict(booking.tutor_id, booking.scheduled_at, booking.id))) {
-    return res.status(409).json({ error: 'You already have a confirmed lesson at that time — reschedule this one first.' });
+  if (status === 'confirmed' && booking.scheduled_at &&
+      (await findConflict(booking.tutor_id, booking.scheduled_at, booking.id, booking.duration_minutes || LESSON_MINUTES))) {
+    return { code: 409, error: 'You already have a confirmed lesson at that time — reschedule this one first.' };
   }
+  return null;
+}
 
-  await db.prepare('UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?').run(status, now(), id);
-
-  if (status === 'completed' && booking.child_id) {
-    await recordActivity(booking.child_id, 25);
-  }
+async function notifyTransition(user, booking, status, subjectOverride) {
+  const subject = subjectOverride || booking.subject;
   if (status === 'completed') {
     const [t, p] = await Promise.all([
       db.prepare('SELECT full_name FROM users WHERE id = ?').get(booking.tutor_id),
       db.prepare('SELECT * FROM users WHERE id = ?').get(booking.parent_id),
     ]);
-    if (p && t) await notifyUser(p, templates.lessonCompleted(t.full_name, booking.subject));
+    if (p && t) await notifyUser(p, templates.lessonCompleted(t.full_name, subject));
+    return;
   }
+  if (status !== 'confirmed' && status !== 'cancelled') return;
+  const [tutorUser, parentUser] = await Promise.all([
+    db.prepare('SELECT * FROM users WHERE id = ?').get(booking.tutor_id),
+    db.prepare('SELECT * FROM users WHERE id = ?').get(booking.parent_id),
+  ]);
+  if (status === 'confirmed') {
+    // Only the tutor (or an admin) can confirm, so the parent is always the recipient.
+    await notifyUser(parentUser, templates.bookingConfirmed(tutorUser.full_name, subject));
+  } else if (booking.status === 'pending' && user.role === 'tutor') {
+    // A tutor declining a request that never got confirmed reads better as a decline than a cancellation.
+    await notifyUser(parentUser, templates.bookingDeclined(tutorUser.full_name));
+  } else {
+    const actingUser = user.role === 'tutor' ? tutorUser : parentUser;
+    const otherUser = user.role === 'tutor' ? parentUser : tutorUser;
+    await notifyUser(otherUser, templates.bookingCancelled(actingUser.full_name, subject));
+  }
+}
 
-  if (status === 'confirmed' || status === 'cancelled') {
-    const [tutorUser, parentUser] = await Promise.all([
-      db.prepare('SELECT * FROM users WHERE id = ?').get(booking.tutor_id),
-      db.prepare('SELECT * FROM users WHERE id = ?').get(booking.parent_id),
-    ]);
+async function afterCompleted(booking) {
+  if (!booking.child_id) return;
+  await recordActivity(booking.child_id, 25);
+  await recomputeProgress(booking.child_id, booking.skill_id);
+}
 
-    if (status === 'confirmed') {
-      // Only the tutor can perform this transition (see VALID_TRANSITIONS), so the parent is always the recipient.
-      await notifyUser(parentUser, templates.bookingConfirmed(tutorUser.full_name, booking.subject));
-    } else if (booking.status === 'pending' && req.user.role === 'tutor') {
-      // A tutor declining a request that never got confirmed reads better as a decline than a cancellation.
-      await notifyUser(parentUser, templates.bookingDeclined(tutorUser.full_name));
-    } else {
-      const actingUser = req.user.role === 'tutor' ? tutorUser : parentUser;
-      const otherUser = req.user.role === 'tutor' ? parentUser : tutorUser;
-      await notifyUser(otherUser, templates.bookingCancelled(actingUser.full_name, booking.subject));
+/**
+ * PATCH /api/bookings/:id/status  body: { status, apply_to_series? }
+ * With apply_to_series (confirm or cancel only), every other lesson in the
+ * same weekly series that can make the same move is updated too. Lessons
+ * that can't (e.g. already completed) are skipped and listed in `skipped`.
+ */
+async function updateStatus(req, res) {
+  const { id } = req.params;
+  const { status, apply_to_series } = req.body || {};
+  const booking = await db.prepare('SELECT * FROM bookings WHERE id = ? AND deleted_at IS NULL').get(id);
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+  if (!canActOn(req.user, booking)) return res.status(403).json({ error: 'Not your booking' });
+
+  const problem = await checkTransition(req.user, booking, status);
+  if (problem) return res.status(problem.code).json({ error: problem.error });
+
+  const wholeSeries = !!apply_to_series && !!booking.series_id && ['confirmed', 'cancelled'].includes(status);
+  let targets = [booking];
+  const skipped = [];
+  if (wholeSeries) {
+    const others = await db.prepare(
+      'SELECT * FROM bookings WHERE series_id = ? AND id <> ? AND deleted_at IS NULL ORDER BY scheduled_at'
+    ).all(booking.series_id, booking.id);
+    for (const other of others) {
+      if (other.status === status) continue;
+      const otherProblem = await checkTransition(req.user, other, status);
+      if (otherProblem) skipped.push({ id: other.id, scheduled_at: other.scheduled_at, reason: otherProblem.error });
+      else targets.push(other);
     }
   }
 
-  res.json({ booking: await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id) });
+  const ts = now();
+  for (const b of targets) {
+    await db.prepare('UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?').run(status, ts, b.id);
+    if (status === 'completed') await afterCompleted(b);
+  }
+
+  // One message per action, not one per lesson in the series.
+  await notifyTransition(req.user, booking, status, targets.length > 1 ? `${booking.subject || 'lessons'} (${targets.length} lessons)` : null);
+
+  const updated = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
+  if (!wholeSeries) return res.json({ booking: updated });
+  res.json({ booking: updated, updated_ids: targets.map((b) => b.id), skipped });
 }
 
 /** GET /api/bookings/:id  (the parent or tutor on the booking, or an admin) */
@@ -216,10 +315,11 @@ async function reschedule(req, res) {
   const sched = normalizeScheduledAt((req.body || {}).scheduled_at);
   if (sched.error) return res.status(400).json({ error: sched.error });
   if (!sched.iso) return res.status(400).json({ error: 'scheduled_at is required' });
-  if (!(await withinAvailability(booking.tutor_id, sched.iso))) {
+  const duration = booking.duration_minutes || LESSON_MINUTES;
+  if (!(await withinAvailability(booking.tutor_id, sched.iso, duration))) {
     return res.status(409).json({ error: "That time is outside the tutor's published availability." });
   }
-  if (await findConflict(booking.tutor_id, sched.iso, booking.id)) {
+  if (await findConflict(booking.tutor_id, sched.iso, booking.id, duration)) {
     return res.status(409).json({ error: 'The tutor already has a lesson at that time.' });
   }
 
@@ -248,7 +348,7 @@ async function ics(req, res) {
   if (![b.tutor_id, b.parent_id].includes(req.user.id) && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Not your booking' });
   if (!b.scheduled_at) return res.status(400).json({ error: 'This lesson has no time yet' });
   const start = new Date(b.scheduled_at);
-  const end = new Date(start.getTime() + LESSON_MINUTES * 60000);
+  const end = new Date(start.getTime() + (b.duration_minutes || LESSON_MINUTES) * 60000);
   const who = req.user.id === b.tutor_id ? b.parent_name : b.tutor_name;
   const body = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lesson Teacher//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
@@ -259,4 +359,22 @@ async function ics(req, res) {
   res.set('Content-Type', 'text/calendar; charset=utf-8').set('Content-Disposition', 'attachment; filename="lesson.ics"').send(body);
 }
 
-module.exports = { reschedule, ics, create, listMine, getOne, updateStatus };
+/** GET /api/bookings/:id/call-chat — the in-lesson chat log (participants, including the child, and admins). */
+async function callChat(req, res) {
+  const b = await db.prepare('SELECT * FROM bookings WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!b) return res.status(404).json({ error: 'Booking not found' });
+  let allowed = req.user.role === 'super_admin' || [b.tutor_id, b.parent_id].includes(req.user.id);
+  if (!allowed && req.user.role === 'child' && b.child_id) {
+    const c = await db.prepare('SELECT user_id FROM children WHERE id = ?').get(b.child_id);
+    allowed = !!c && c.user_id === req.user.id;
+  }
+  if (!allowed) return res.status(403).json({ error: 'Not your booking' });
+  const messages = await db.prepare(
+    `SELECT m.id, m.sender_id, m.sender_role, m.body, m.created_at, u.full_name AS sender_name
+       FROM lesson_call_messages m JOIN users u ON u.id = m.sender_id
+      WHERE m.booking_id = ? ORDER BY m.created_at`
+  ).all(b.id);
+  res.json({ messages });
+}
+
+module.exports = { callChat, reschedule, ics, create, listMine, getOne, updateStatus };

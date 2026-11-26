@@ -5,10 +5,12 @@ import { deviceLink, conversations } from '../api/client';
 import { clearCache } from '../utils/offline';
 import { confirmAction } from '../utils/confirm';
 import { colors, spacing, typography, commonStyles } from '../theme';
+import QrScanner, { codeFromLink } from '../components/QrScanner';
 
 export default function LinkedDevicesScreen() {
   const [devices, setDevices] = useState([]);
   const [code, setCode] = useState('');
+  const [scanning, setScanning] = useState(false);
   const [msg, setMsg] = useState(null);
   const [err, setErr] = useState(null);
 
@@ -17,9 +19,9 @@ export default function LinkedDevicesScreen() {
   }, []);
   useFocusEffect(load);
 
-  function approve() {
+  function approve(value = code) {
     setErr(null); setMsg(null);
-    deviceLink.approve(code).then((r) => { setMsg(`Linked ${r.label || 'device'}.`); setCode(''); load(); }).catch((e) => setErr(e.message));
+    deviceLink.approve(value).then((r) => { setMsg(`Linked ${r.label || 'device'}.`); setCode(''); load(); }).catch((e) => setErr(e.message));
   }
   function revoke(d) {
     confirmAction(`Sign out ${d.label}?`, 'It will need to sign in again.', () => deviceLink.revoke(d.id).then(load).catch((e) => setErr(e.message)), 'Sign out');
@@ -40,7 +42,7 @@ export default function LinkedDevicesScreen() {
       {msg && <Text style={styles.ok}>{msg}</Text>}
 
       <Text style={styles.h}>Linked devices</Text>
-      <Text style={styles.help}>To sign in another device, choose “Sign in with a code” on its login screen and enter the code here.</Text>
+      <Text style={styles.help}>To use Lesson Teacher on a computer, open the desktop app, choose “Sign in with a code”, then scan its QR code here (or type the code).</Text>
       {devices.map((d) => (
         <View key={d.id} style={styles.row}>
           <View style={{ flex: 1 }}>
@@ -51,9 +53,19 @@ export default function LinkedDevicesScreen() {
         </View>
       ))}
       <TextInput style={styles.input} value={code} onChangeText={(t) => setCode(t.toUpperCase())} placeholder="Code from the new device" autoCapitalize="characters" maxLength={8} />
-      <Pressable style={[commonStyles.primaryButton, code.length < 8 && commonStyles.buttonDisabled]} disabled={code.length < 8} onPress={approve}>
+      <Pressable style={[commonStyles.primaryButton, code.length < 8 && commonStyles.buttonDisabled]} disabled={code.length < 8} onPress={() => approve()}>
         <Text style={commonStyles.primaryButtonText}>Link device</Text>
       </Pressable>
+      <Pressable style={[commonStyles.secondaryButton, { marginTop: spacing.sm }]} onPress={() => setScanning(true)}>
+        <Text style={commonStyles.secondaryButtonText}>Scan QR code from computer</Text>
+      </Pressable>
+      <QrScanner
+        visible={scanning}
+        title="Scan the QR code shown on the Lesson Teacher desktop app"
+        accept={(d) => !!codeFromLink(d, 'link')}
+        onClose={() => setScanning(false)}
+        onCode={(d) => { setScanning(false); const c = codeFromLink(d, 'link'); setCode(c); approve(c); }}
+      />
 
       <Text style={[styles.h, { marginTop: spacing.lg }]}>Chat backup &amp; storage</Text>
       <Text style={styles.help}>Your messages are kept on our servers and re-sync to any device you sign in on. You can also keep your own copy.</Text>

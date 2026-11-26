@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { childInvites, consumeSessionExpired, deviceLink } from '../api/client';
+import QrCode from '../components/QrCode';
 
 const HOME_BY_ROLE = {
   super_admin: '/superadmin',
@@ -106,6 +107,8 @@ export default function Login() {
             {link ? (
               <div className="lt-card" style={{ textAlign: 'center' }}>
                 <p style={{ margin: 0 }}>On a device where you're signed in, open <strong>Account → Linked devices</strong> and enter:</p>
+                <QrCode value={`lessonteacher://link?code=${link.code}`} size={200} label="Scan with the Lesson Teacher app: Account, Linked devices" />
+                <p className="lt-helper-text">On your phone open Lesson Teacher → Account → Linked devices → Scan QR code. Or type this code:</p>
                 <div style={{ fontSize: '1.6rem', letterSpacing: 4, fontWeight: 700, margin: '8px 0' }} data-testid="link-code">{link.code}</div>
                 <small className="lt-helper-text">Waiting for approval… the code expires in 2 minutes.</small>
               </div>

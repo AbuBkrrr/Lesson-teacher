@@ -2,7 +2,7 @@
   "name": "lesson-teacher-portal",
   "private": true,
   "version": "1.0.0",
-  "description": "Lesson Teacher \u2014 parent-tutor marketplace desktop portal",
+  "description": "Lesson Teacher — parent-tutor marketplace desktop portal",
   "author": {
     "name": "Lesson Teacher",
     "email": "support@lessonteacher.example"
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "mediasoup-client": "^3.22.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
@@ -46,7 +47,7 @@
   "build": {
     "appId": "com.lessonteacher.desktop",
     "productName": "Lesson Teacher",
-    "copyright": "Copyright \u00a9 2026 Lesson Teacher",
+    "copyright": "Copyright © 2026 Lesson Teacher",
     "directories": {
       "output": "release",
       "buildResources": "build"

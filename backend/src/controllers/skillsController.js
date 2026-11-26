@@ -44,12 +44,38 @@ async function mine(req, res) {
        WHERE ts.tutor_id = ? AND ts.deleted_at IS NULL ORDER BY s.category, s.name`
     )
     .all(req.user.id);
-  res.json({ tutor_skills: rows });
+  res.json({ tutor_skills: rows.map(withEvidenceList) });
 }
 
-/** POST /api/skills/mine  (tutor)  body: { skill_id, proficiency, evidence_url } */
+const PROFICIENCIES = ['beginner', 'intermediate', 'advanced', 'expert'];
+const MAX_EVIDENCE = 5;
+
+/** Parses the stored JSON evidence list (falls back to the single legacy link). */
+function withEvidenceList(row) {
+  let list = [];
+  try { list = row.evidence_urls ? JSON.parse(row.evidence_urls) : []; } catch { list = []; }
+  if (!list.length && row.evidence_url) list = [row.evidence_url];
+  return { ...row, evidence_urls: list };
+}
+
+/**
+ * POST /api/skills/mine  (tutor)
+ * body: { skill_id, proficiency, evidence_urls?: string[] (up to 5 https links), evidence_url? (legacy single link) }
+ */
 async function addMine(req, res) {
-  const { skill_id, proficiency, evidence_url } = req.body || {};
+  const { skill_id } = req.body || {};
+  const proficiency = req.body?.proficiency || 'intermediate';
+  if (!PROFICIENCIES.includes(proficiency)) {
+    return res.status(400).json({ error: `proficiency must be one of: ${PROFICIENCIES.join(', ')}` });
+  }
+  let links = Array.isArray(req.body?.evidence_urls) ? req.body.evidence_urls : (req.body?.evidence_url ? [req.body.evidence_url] : []);
+  links = links.map((l) => String(l || '').trim()).filter(Boolean);
+  if (links.length > MAX_EVIDENCE) return res.status(400).json({ error: `Add at most ${MAX_EVIDENCE} evidence links` });
+  if (links.some((l) => !/^https?:\/\/\S+$/i.test(l) || l.length > 500)) {
+    return res.status(400).json({ error: 'Evidence links must be web addresses starting with https://' });
+  }
+  const evidence_url = links[0] || null;
+  const evidenceJson = links.length ? JSON.stringify(links) : null;
   const skill = await db.prepare('SELECT id FROM skills WHERE id = ? AND deleted_at IS NULL').get(skill_id);
   if (!skill) return res.status(400).json({ error: 'skill_id does not match a known skill' });
 
@@ -57,12 +83,12 @@ async function addMine(req, res) {
   const ts = now();
 
   if (existing) {
-    await db.prepare('UPDATE tutor_skills SET proficiency = ?, evidence_url = ?, deleted_at = NULL, updated_at = ? WHERE id = ?')
-      .run(proficiency || 'intermediate', evidence_url || null, ts, existing.id);
+    await db.prepare('UPDATE tutor_skills SET proficiency = ?, evidence_url = ?, evidence_urls = ?, deleted_at = NULL, updated_at = ? WHERE id = ?')
+      .run(proficiency, evidence_url, evidenceJson, ts, existing.id);
   } else {
     await db.prepare(
-      'INSERT INTO tutor_skills (id, tutor_id, skill_id, proficiency, evidence_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(uuidv4(), req.user.id, skill_id, proficiency || 'intermediate', evidence_url || null, ts, ts);
+      'INSERT INTO tutor_skills (id, tutor_id, skill_id, proficiency, evidence_url, evidence_urls, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(uuidv4(), req.user.id, skill_id, proficiency, evidence_url, evidenceJson, ts, ts);
   }
 
   res.status(201).json({ ok: true });

@@ -515,6 +515,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     flex-shrink: 0;
   }
   .lt-table td:empty::before { content: none; }
+  /* A cell's secondary line (helper text, second value) goes under the main
+     value, right-aligned, instead of squeezing in beside it. */
+  .lt-table td { flex-wrap: wrap; }
+  .lt-table td > div, .lt-table td > .lt-helper-text { flex-basis: 100%; text-align: right; }
+  .lt-table td > div.lt-row { justify-content: flex-end; }
 
   /* Messages: show either the conversation list or the open thread, not both. */
   .lt-messages-grid { grid-template-columns: 1fr; }
@@ -584,6 +589,47 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .lt-lesson-controls { bottom: 12px; padding: 8px 12px; gap: 8px; }
 }
 
+/* Lesson room: side panel (chat / whiteboard), screen share tile */
+.lt-lesson-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; padding-bottom: 110px; }
+.lt-lesson-stage { min-width: 0; }
+.lt-lesson-video-grid.has-screen { grid-template-columns: 1fr; }
+.lt-lesson-layout > .lt-lesson-self-view { position: absolute; top: 8px; left: 8px; right: auto; bottom: auto; width: 160px; z-index: 5; }
+.lt-lesson-sound-btn { position: absolute; top: 8px; right: 8px; }
+.lt-lesson-remote-tile.is-screen { aspect-ratio: 16 / 9; background: #000; }
+.lt-lesson-side { display: flex; flex-direction: column; gap: 8px; padding: 12px; max-height: 70vh; }
+.lt-lesson-tabs { display: flex; gap: 8px; }
+.lt-lesson-chat { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.lt-lesson-chat-log { overflow-y: auto; min-height: 200px; max-height: 52vh; display: flex; flex-direction: column; gap: 6px; }
+.lt-lesson-chat-msg { background: var(--lt-bg); border-radius: var(--lt-radius-sm); padding: 6px 10px; max-width: 92%; overflow-wrap: anywhere; }
+.lt-lesson-chat-msg.is-mine { align-self: flex-end; background: var(--lt-primary-tint-strong); }
+.lt-lesson-chat-who { display: block; font-size: 0.72rem; color: var(--lt-muted); font-weight: 600; }
+.lt-lesson-chat-form { display: flex; gap: 6px; }
+.lt-lesson-chat-form .lt-field { flex: 1; min-width: 0; }
+.lt-lesson-board { grid-column: 1 / -1; padding: 12px; }
+.lt-wb { display: flex; flex-direction: column; gap: 8px; }
+.lt-wb-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lt-wb-sep { width: 1px; height: 22px; background: var(--lt-border); margin: 0 2px; }
+.lt-wb-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--lt-card); box-shadow: 0 0 0 1px var(--lt-border); cursor: pointer; padding: 0; }
+.lt-wb-swatch.is-active { box-shadow: 0 0 0 2px var(--lt-primary); }
+.lt-wb-surface { width: 100%; }
+.lt-wb-surface canvas { display: block; background: #fff; border: 1px solid var(--lt-border); border-radius: var(--lt-radius-sm); cursor: crosshair; }
+@media (max-width: 900px) {
+  .lt-lesson-layout { grid-template-columns: minmax(0, 1fr); padding-bottom: 16px; }
+  .lt-lesson-side { max-height: none; }
+  /* Phones/tablets: call controls sit right under the video, in the page flow,
+     so they never cover the chat box or the whiteboard. */
+  .lt-lesson-stage { order: 0; }
+  .lt-lesson-layout > .lt-lesson-controls {
+    order: 1; position: static; transform: none; left: auto; bottom: auto;
+    justify-content: center; flex-wrap: wrap; width: 100%; box-sizing: border-box;
+    border-radius: var(--lt-radius); padding: 8px; gap: 8px;
+  }
+  .lt-lesson-layout > .lt-lesson-controls .lt-btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-left: 6px; padding-right: 6px; }
+  .lt-lesson-side { order: 2; }
+  .lt-lesson-board { order: 3; }
+  .lt-lesson-chat-log { max-height: 40vh; }
+}
+
 /* Identity verification status badges */
 .lt-status-ok { border-left: 4px solid #16a34a; }
 .lt-status-warn { border-left: 4px solid #f59e0b; }
@@ -600,3 +646,70 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lt-conv-badge { background: var(--lt-primary); color: #fff; border-radius: 999px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; flex-shrink: 0; }
 .lt-day-sep { align-self: center; background: var(--lt-bg); color: var(--lt-muted); font-size: 0.7rem; padding: 2px 10px; border-radius: 999px; margin: 6px 0; }
 .lt-chat-status { font-size: 0.75rem; color: var(--lt-primary); min-height: 1.1em; }
+.lt-muted { color: var(--lt-muted); }
+.lt-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lt-audition-list { display: grid; gap: 12px; }
+.lt-audition-form { border-top: 1px solid var(--lt-border); margin-top: 10px; padding-top: 10px; }
+.lt-stars-input { border: 0; padding: 0; margin: 0 0 8px; display: flex; gap: 4px; align-items: center; }
+.lt-stars-input legend { font-weight: 600; margin-bottom: 4px; }
+.lt-stars-input label { cursor: pointer; font-size: 1.5rem; color: #f59e0b; }
+.lt-stars-input input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.lt-stars-input input:focus-visible + span { outline: 2px solid var(--lt-primary); border-radius: 4px; }
+.lt-audition-options { margin: 6px 0 10px; }
+.lt-audition-options summary { cursor: pointer; color: var(--lt-primary-text); font-weight: 600; }
+.lt-progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.lt-stat { padding: 14px; }
+.lt-stat strong { display: block; font-size: 1.6rem; }
+.lt-meter { height: 8px; background: var(--lt-border); border-radius: 999px; overflow: hidden; }
+.lt-meter > span { display: block; height: 100%; background: var(--lt-primary); }
+.lt-qr { background: #fff; padding: 12px; border-radius: var(--lt-radius-sm); display: inline-block; }
+.lt-report dt { font-weight: 700; margin-top: 8px; }
+.lt-report dd { margin: 2px 0 0; white-space: pre-wrap; }
+.lt-progress-grid > .lt-card { margin: 0; }
+.lt-progress-grid + h2, .lt-progress-grid { margin-bottom: 12px; }
+
+/* ---------- Marketing ---------- */
+.lt-stat-sub { margin-top: 6px; font-size: 0.85rem; color: var(--lt-muted); line-height: 1.5; }
+.lt-mk-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 12px; align-items: end; }
+.lt-mk-form .lt-btn { margin-bottom: 16px; }
+.lt-table-wrap { overflow-x: auto; }
+.lt-device-no { display: inline-block; min-width: 2.2em; text-align: center; font-weight: 700; background: var(--lt-primary-tint-strong); color: var(--lt-primary-text); border-radius: 999px; padding: 1px 8px; }
+.lt-mk-kit-grid { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.lt-mk-breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.lt-mk-breakdowns > .lt-card { margin: 0; }
+.lt-barlist { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.lt-barlist li { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; gap: 8px; align-items: center; font-size: 0.85rem; }
+.lt-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-barlist-bar { height: 8px; background: var(--lt-border); border-radius: 999px; overflow: hidden; }
+.lt-barlist-bar > span { display: block; height: 100%; background: var(--lt-primary); }
+.lt-barlist-num { color: var(--lt-muted); font-variant-numeric: tabular-nums; }
+.lt-mk-mail { border-top: 1px solid var(--lt-border); margin-top: 16px; padding-top: 8px; }
+
+/* Public pitch page */
+.lt-pitch { min-height: 100vh; background: var(--lt-bg); color: var(--lt-ink); padding: 0 16px 96px; }
+.lt-pitch > * { max-width: 960px; margin-left: auto; margin-right: auto; }
+.lt-pitch-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; }
+.lt-pitch-brand { font-size: 1.2rem; color: var(--lt-primary-text); }
+.lt-pitch-hero { padding: 24px 0 8px; }
+.lt-pitch-hero h1 { font-size: clamp(1.8rem, 5vw, 2.8rem); line-height: 1.15; margin: 0 0 12px; }
+.lt-pitch-hero p { font-size: 1.05rem; max-width: 46em; }
+.lt-pitch-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+.lt-pitch-cta { font-size: 1.05rem; padding: 12px 22px; }
+.lt-pitch-note { background: var(--lt-warning-bg); color: var(--lt-warning-fg); padding: 8px 12px; border-radius: var(--lt-radius-sm); display: inline-block; }
+.lt-pitch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px auto; }
+.lt-pitch-grid > .lt-card { margin: 0; }
+.lt-pitch-grid h2, .lt-pitch-form h2 { font-size: 1.2rem; }
+.lt-pitch-grid ol { padding-left: 1.2em; line-height: 1.7; }
+.lt-pitch-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; margin: 4px 0 12px; }
+.lt-pitch-cookies { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 640px; margin: 0 auto; background: var(--lt-card); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: var(--lt-radius); padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
+.lt-pitch-cookies span { flex: 1 1 200px; }
+
+/* ---------- Responsive safety nets ---------- */
+/* Form controls never grow wider than their container (long <option> text, long values). */
+main select, main input, main textarea { max-width: 100%; }
+/* Long unbroken words, links and tokens wrap inside cards instead of widening the page. */
+.lt-card { overflow-wrap: break-word; min-width: 0; }
+.lt-monitor-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 768px) {
+  .lt-monitor-grid { grid-template-columns: minmax(0, 1fr); }
+}

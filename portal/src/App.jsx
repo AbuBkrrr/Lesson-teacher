@@ -21,6 +21,9 @@ import Curriculum from './pages/Curriculum';
 import StudentAssignments from './pages/StudentAssignments';
 import StudentMaterials from './pages/StudentMaterials';
 import ChildBadges from './pages/ChildBadges';
+import Progress from './pages/Progress';
+import Pitch, { Unsubscribe } from './pages/Pitch';
+import SuperAdminMarketing from './pages/superadmin/Marketing';
 import LessonRoom from './pages/LessonRoom';
 
 import SuperAdminDashboard from './pages/superadmin/Dashboard';
@@ -78,15 +81,20 @@ function Routed() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/go" element={<Pitch />} />
+      <Route path="/go/:slug" element={<Pitch />} />
+      <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
       <Route path="/" element={<RoleRedirect />} />
 
       {/* Shared across multiple roles */}
       <Route path="/messages" element={<RequireRole role={['tutor', 'parent', 'adult_student', 'child']}><Messages /></RequireRole>} />
       <Route path="/notifications" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Notifications /></RequireRole>} />
       <Route path="/account" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Account /></RequireRole>} />
-      <Route path="/lessons/:bookingId" element={<RequireRole role={['tutor', 'parent', 'adult_student']}><LessonRoom /></RequireRole>} />
+      <Route path="/lessons/:bookingId" element={<RequireRole role={['tutor', 'parent', 'adult_student', 'child']}><LessonRoom /></RequireRole>} />
       <Route path="/curriculum" element={<RequireRole role={['super_admin', 'school_admin', 'tutor', 'parent', 'adult_student', 'child']}><Curriculum /></RequireRole>} />
       <Route path="/assignments" element={<RequireRole role={['parent', 'adult_student', 'child']}><StudentAssignments /></RequireRole>} />
+      <Route path="/my-progress" element={<RequireRole role="child"><Progress /></RequireRole>} />
+      <Route path="/parent/progress" element={<RequireRole role="parent"><Progress /></RequireRole>} />
       <Route path="/my-badges" element={<RequireRole role="child"><ChildBadges /></RequireRole>} />
       <Route path="/materials" element={<RequireRole role={['parent', 'adult_student', 'child']}><StudentMaterials /></RequireRole>} />
       <Route path="/subscriptions" element={<RequireRole role={['parent', 'adult_student', 'school_admin', 'super_admin']}><Subscriptions /></RequireRole>} />
@@ -106,6 +114,7 @@ function Routed() {
       <Route path="/superadmin/tutors" element={<RequireRole role="super_admin"><SuperAdminTutors /></RequireRole>} />
       <Route path="/superadmin/announcements" element={<RequireRole role="super_admin"><SuperAdminAnnouncements /></RequireRole>} />
       <Route path="/superadmin/settings" element={<RequireRole role="super_admin"><SuperAdminSettings /></RequireRole>} />
+      <Route path="/superadmin/marketing" element={<RequireRole role="super_admin"><SuperAdminMarketing /></RequireRole>} />
       <Route path="/superadmin/verifications" element={<RequireRole role="super_admin"><SuperAdminVerifications /></RequireRole>} />
 
       {/* School */}

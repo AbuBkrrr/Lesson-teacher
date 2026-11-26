@@ -71,7 +71,7 @@ export default function Notifications() {
               aria-label={`${n.read_at ? '' : 'Unread: '}${n.subject || 'Notification'}. ${n.body}`}
             >
               <span aria-hidden="true" style={{ fontSize: '1.4rem' }}>{iconFor(n.type)}</span>
-              <span style={{ flex: 1 }}>
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                 <strong>{n.subject || 'Notification'}</strong>
                 <span style={{ display: 'block' }}>{n.body}</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--lt-muted)' }}>{formatLesson(n.created_at)}</span>

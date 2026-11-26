@@ -21,6 +21,14 @@
           "icon": "./assets/android-icon-foreground.png",
           "color": "#E6F4FE"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Lesson Teacher uses the camera for video lessons and to scan sign-in QR codes.",
+          "microphonePermission": "Lesson Teacher uses the microphone for video lessons.",
+          "recordAudioAndroid": true
+        }
       ]
     ],
     "ios": {

@@ -95,6 +95,10 @@ export default function LoginScreen({ navigation }) {
           </Pressable>
         )}
 
+        <Pressable style={styles.linkRow} onPress={() => navigation.navigate('ChildInvite')}>
+          <Text style={styles.linkText}>A parent gave you a code? Sign up here</Text>
+        </Pressable>
+
         <Pressable style={styles.linkRow} onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.linkText}>Forgot your password?</Text>
         </Pressable>
