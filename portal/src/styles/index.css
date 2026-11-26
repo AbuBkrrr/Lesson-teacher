@@ -515,6 +515,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     flex-shrink: 0;
   }
   .lt-table td:empty::before { content: none; }
+  /* A cell's secondary line (helper text, second value) goes under the main
+     value, right-aligned, instead of squeezing in beside it. */
+  .lt-table td { flex-wrap: wrap; }
+  .lt-table td > div, .lt-table td > .lt-helper-text { flex-basis: 100%; text-align: right; }
+  .lt-table td > div.lt-row { justify-content: flex-end; }
 
   /* Messages: show either the conversation list or the open thread, not both. */
   .lt-messages-grid { grid-template-columns: 1fr; }
@@ -609,8 +614,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lt-wb-surface { width: 100%; }
 .lt-wb-surface canvas { display: block; background: #fff; border: 1px solid var(--lt-border); border-radius: var(--lt-radius-sm); cursor: crosshair; }
 @media (max-width: 900px) {
-  .lt-lesson-layout { grid-template-columns: 1fr; }
+  .lt-lesson-layout { grid-template-columns: minmax(0, 1fr); padding-bottom: 16px; }
   .lt-lesson-side { max-height: none; }
+  /* Phones/tablets: call controls sit right under the video, in the page flow,
+     so they never cover the chat box or the whiteboard. */
+  .lt-lesson-stage { order: 0; }
+  .lt-lesson-layout > .lt-lesson-controls {
+    order: 1; position: static; transform: none; left: auto; bottom: auto;
+    justify-content: center; flex-wrap: wrap; width: 100%; box-sizing: border-box;
+    border-radius: var(--lt-radius); padding: 8px; gap: 8px;
+  }
+  .lt-lesson-layout > .lt-lesson-controls .lt-btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-left: 6px; padding-right: 6px; }
+  .lt-lesson-side { order: 2; }
+  .lt-lesson-board { order: 3; }
+  .lt-lesson-chat-log { max-height: 40vh; }
 }
 
 /* Identity verification status badges */
@@ -686,3 +703,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lt-pitch-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; margin: 4px 0 12px; }
 .lt-pitch-cookies { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 640px; margin: 0 auto; background: var(--lt-card); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: var(--lt-radius); padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
 .lt-pitch-cookies span { flex: 1 1 200px; }
+
+/* ---------- Responsive safety nets ---------- */
+/* Form controls never grow wider than their container (long <option> text, long values). */
+main select, main input, main textarea { max-width: 100%; }
+/* Long unbroken words, links and tokens wrap inside cards instead of widening the page. */
+.lt-card { overflow-wrap: break-word; min-width: 0; }
+.lt-monitor-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 768px) {
+  .lt-monitor-grid { grid-template-columns: minmax(0, 1fr); }
+}

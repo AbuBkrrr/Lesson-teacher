@@ -291,7 +291,7 @@ export default function Marketing() {
       <section className="lt-card" aria-labelledby="mk-recent">
         <div className="lt-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 id="mk-recent" style={{ marginTop: 0 }}>Recent opens</h2>
-          <select aria-label="Filter opens by link" value={openFilter} onChange={(e) => setOpenFilter(e.target.value)}>
+          <select aria-label="Filter opens by link" style={{ maxWidth: '100%' }} value={openFilter} onChange={(e) => setOpenFilter(e.target.value)}>
             <option value="">All links</option>
             {(data?.links || []).map((l) => <option key={l.id || 'none'} value={l.id || 'none'}>{l.label}</option>)}
           </select>

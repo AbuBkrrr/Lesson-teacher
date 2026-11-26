@@ -22,7 +22,7 @@ export default function Monitor() {
 
       {error && <div className="lt-error-banner">{error}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+      <div className="lt-monitor-grid">
         <div className="lt-card" style={{ padding: 8 }}>
           {list.map((c) => (
             <button
